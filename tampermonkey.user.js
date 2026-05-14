@@ -97,8 +97,11 @@
   async function runBulkSet(value) {
     const status = makeStatus('Setting payment methods to "' + value + '"...');
     try {
-      const total = findPaymentMethodInputs().length;
-      console.log('[QBO bulk] Found', total, 'Payment Method inputs');
+      const inputs = findPaymentMethodInputs();
+      const total = inputs.length;
+      const debugInfo = inputs.map(i => i.dataset.testid || i.id || i.getAttribute('aria-label') || '?').join(', ');
+      status.textContent = 'Found ' + total + ': ' + (debugInfo || 'none');
+      await sleep(3000); // pause so you can read what was found
       if (total === 0) {
         status.style.background = '#d52b1e';
         status.textContent = 'No payment method fields found. Open a Bank Deposit first.';
