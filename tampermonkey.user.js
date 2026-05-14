@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Deposit Fields
 // @namespace    qbo-bulk-deposit-fields
-// @version      2.3
+// @version      2.4
 // @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -162,21 +162,43 @@ async function runViaCell(value) {
         var cellRect = cell.getBoundingClientRect();
         console.log('[QBO] row', i, 'cellRect top:', Math.round(cellRect.top), 'left:', Math.round(cellRect.left));
 
-        await activateCell(cell);
-        await sleep(400);
+        // Try clicking up to 3 times — the last row sometimes needs a second attempt
+        // because QBO may still be settling from the previous save.
+        var input = null;
+        for (var attempt = 0; attempt < 3 && !input; attempt++) {
+          if (attempt > 0) {
+            console.log('[QBO] row', i, 'retry attempt', attempt + 1);
+            // Re-query the live cell in case React replaced it
+            var retryCells = findColumnCells('PAYMENT METHOD');
+            var retryCell = retryCells[i];
+            if (retryCell) {
+              retryCell.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+              await sleep(150);
+              // Alternate strategy: direct click on the cell element itself
+              retryCell.dispatchEvent(new MouseEvent('mousedown', { bubbles:true, cancelable:true }));
+              retryCell.dispatchEvent(new MouseEvent('mouseup',   { bubbles:true, cancelable:true }));
+              retryCell.click();
+              await sleep(600);
+            }
+          } else {
+            await activateCell(cell);
+            await sleep(500);
+          }
 
-        var allInputs = Array.from(document.querySelectorAll(
-          'input[role="combobox"], input[aria-autocomplete], input[aria-haspopup="listbox"]'
-        ));
-        console.log('[QBO] row', i, 'inputs after click:',
-          allInputs.map(function(inp) {
-            var r = inp.getBoundingClientRect();
-            return { top: Math.round(r.top), left: Math.round(r.left), val: inp.value, excl: usedInputs.has(inp) };
-          })
-        );
+          var allInputs = Array.from(document.querySelectorAll(
+            'input[role="combobox"], input[aria-autocomplete], input[aria-haspopup="listbox"]'
+          ));
+          console.log('[QBO] row', i, 'attempt', attempt + 1, '— inputs:',
+            allInputs.map(function(inp) {
+              var r = inp.getBoundingClientRect();
+              return { top: Math.round(r.top), left: Math.round(r.left), val: inp.value, excl: usedInputs.has(inp) };
+            })
+          );
 
-        var input = await waitForInputNearCell(cellRect, 1500, usedInputs);
-        if (!input) { console.warn('[QBO] row', i, 'no input found'); continue; }
+          input = await waitForInputNearCell(cellRect, 800, usedInputs);
+        }
+
+        if (!input) { console.warn('[QBO] row', i, 'no input found after 3 attempts'); continue; }
         console.log('[QBO] row', i, 'found input at top:', Math.round(input.getBoundingClientRect().top));
 
         usedInputs.add(input);
