@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Payment Method
 // @namespace    qbo-bulk-payment-method
-// @version      1.0
+// @version      1.1
 // @description  Adds a button on the QBO Bank Deposit page to set all Payment Method fields at once
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -29,9 +29,8 @@
   onNavigate(); // run on initial load too
 
   function onNavigate() {
-    // Only active on the Bank Deposit page
-    if (!location.href.includes('bank-deposit') && !location.href.includes('bankdeposit')) return;
-    // Wait a moment for the page to render before injecting the button
+    // Show the button on all QBO pages — it will report an error if clicked
+    // somewhere that has no payment method inputs.
     setTimeout(injectButton, 1200);
   }
 
@@ -107,6 +106,12 @@
     try {
       const total = findPaymentMethodInputs().length;
       console.log('[QBO bulk] Found', total, 'Payment Method inputs');
+      if (total === 0) {
+        status.style.background = '#d52b1e';
+        status.textContent = 'No payment method fields found. Open a Bank Deposit first.';
+        setTimeout(() => status.remove(), 4000);
+        return;
+      }
 
       let updated = 0;
       const MAX = 20;
