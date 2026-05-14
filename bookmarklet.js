@@ -144,44 +144,42 @@
     input.focus();
     await sleep(60);
 
-    // Write value through React's own input descriptor so React sees the change
     const nativeSetter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype, 'value'
     ).set;
     nativeSetter.call(input, value);
     input.dispatchEvent(new Event('input',  { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    await sleep(200);
 
-    // Try the listbox this input controls first (most reliable)
-    const opt = findOptionForInput(input, value) || findOptionGlobal(value);
+    // Poll for the matching option — give QBO up to 800ms to render the dropdown.
+    // Never press Enter as a fallback: QBO treats Enter-with-no-match as "Add new".
+    const opt = await waitForOption(input, value, 800);
     if (opt) {
       opt.click();
       await sleep(80);
       return;
     }
 
-    // Fallback: arrow-down to open, then Enter to accept first highlighted item
+    // Option not found — clear the field and bail rather than triggering "Add new".
+    nativeSetter.call(input, '');
+    input.dispatchEvent(new Event('input',  { bubbles: true }));
     input.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true
-    }));
-    await sleep(120);
-
-    const opt2 = findOptionForInput(input, value) || findOptionGlobal(value);
-    if (opt2) {
-      opt2.click();
-      await sleep(80);
-      return;
-    }
-
-    input.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true
-    }));
-    input.dispatchEvent(new KeyboardEvent('keyup',  {
-      key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true
+      key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true
     }));
     input.blur();
     await sleep(80);
+    throw new Error('Option "' + value + '" not found in dropdown');
+  }
+
+  // Poll every 80ms up to `timeout` ms for the option to appear in the listbox.
+  async function waitForOption(input, value, timeout) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const opt = findOptionForInput(input, value) || findOptionGlobal(value);
+      if (opt) return opt;
+      await sleep(80);
+    }
+    return null;
   }
 
   // Look inside the listbox that this specific input controls
@@ -203,9 +201,11 @@
 
   function pickOption(options, value) {
     const v = value.trim().toLowerCase();
+    // Exclude "Add new" / "New Payment Method" entries — clicking those opens a dialog
+    const safe = options.filter(o => !/add new|new payment/i.test(o.textContent));
     return (
-      options.find(o => o.textContent.trim().toLowerCase() === v) ||
-      options.find(o => o.textContent.trim().toLowerCase().includes(v))
+      safe.find(o => o.textContent.trim().toLowerCase() === v) ||
+      safe.find(o => o.textContent.trim().toLowerCase().includes(v))
     );
   }
 
