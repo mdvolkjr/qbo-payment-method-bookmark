@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Payment Method
 // @namespace    qbo-bulk-payment-method
-// @version      1.3
+// @version      1.4
 // @description  Adds a button on the QBO Bank Deposit page to set all Payment Method fields at once
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -97,7 +97,6 @@
   async function runBulkSet(value) {
     const status = makeStatus('Finding payment method cells...');
     try {
-      // Inputs are lazy-rendered — find the cells first, click to reveal each input
       const cells = findPaymentMethodCells();
       const total = cells.length;
 
@@ -145,30 +144,38 @@
     }
   }
 
-  // Find the cells in the PAYMENT METHOD column (inputs don't exist until clicked)
+  // Find the cells in the PAYMENT METHOD column using horizontal position matching.
+  // QBO thead and tbody have different numbers of children, so raw colIndex fails.
+  // Instead we find the header TH's x-center and match tbody TDs by position.
   function findPaymentMethodCells() {
+    // Find the leaf element whose text is exactly "PAYMENT METHOD"
     const pmHeader = Array.from(document.querySelectorAll('*')).find(
       el => el.children.length === 0 && el.textContent.trim().toUpperCase() === 'PAYMENT METHOD'
     );
     if (!pmHeader) return [];
 
-    // Walk up to the TH, then its TR, then the TABLE
+    // Walk up to the TH that contains it
     const headerCell = pmHeader.closest('th, td');
     if (!headerCell) return [];
-    const headerRow = headerCell.closest('tr');
-    if (!headerRow) return [];
-    const colIndex = Array.from(headerRow.children).indexOf(headerCell);
-    if (colIndex === -1) return [];
 
-    // Data rows are in <tbody>, not the same <thead> as the header
-    const table = headerRow.closest('table');
+    // Get the horizontal center of the header cell
+    const headerRect = headerCell.getBoundingClientRect();
+    if (headerRect.width === 0) return [];
+    const headerCx = (headerRect.left + headerRect.right) / 2;
+
+    // Find the table and tbody
+    const table = headerCell.closest('table');
     if (!table) return [];
     const tbody = table.querySelector('tbody');
     if (!tbody) return [];
 
-    return Array.from(tbody.querySelectorAll('tr'))
-      .map(row => row.children[colIndex])
-      .filter(Boolean);
+    // Match all TD elements whose horizontal center is within 30px of the header center
+    return Array.from(tbody.querySelectorAll('td')).filter(td => {
+      const r = td.getBoundingClientRect();
+      if (r.width === 0) return false;
+      const tdCx = (r.left + r.right) / 2;
+      return Math.abs(tdCx - headerCx) < 30;
+    });
   }
 
   // Poll until an input appears inside a cell (after clicking it)
