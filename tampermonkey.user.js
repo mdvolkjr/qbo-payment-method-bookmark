@@ -85,7 +85,7 @@
         cursor: 'pointer', fontSize: '14px', fontWeight: '500'
       });
       b.onmouseover = () => (b.style.background = '#108000');
-      b.onmouseout  = () => (b.style.background = '#2ca01c');
+      b.onmouseout = () => (b.style.background = '#2ca01c');
       b.onclick = () => { overlay.remove(); runBulkSet(v); };
       overlay.appendChild(b);
     });
