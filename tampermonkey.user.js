@@ -200,8 +200,12 @@
   // ── Set a React-controlled combobox ───────────────────────────────────────
 
   async function setComboValue(input, value) {
+    // QBO inputs need a real click to become interactive — focus() alone is not enough
+    input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    input.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true, cancelable: true }));
+    input.dispatchEvent(new MouseEvent('click',     { bubbles: true, cancelable: true }));
     input.focus();
-    await sleep(60);
+    await sleep(150);
 
     const nativeSetter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype, 'value'
