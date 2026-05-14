@@ -34,11 +34,11 @@
     btn.id = BUTTON_ID;
     btn.textContent = '💳 Set Payment Methods';
     Object.assign(btn.style, {
-      position: 'fixed', bottom: '24px', right: '24px', zIndex: '2147483647',
+      position: 'fixed', top: '8px', right: '120px', zIndex: '2147483647',
       background: '#2ca01c', color: '#fff', border: 'none', borderRadius: '6px',
-      padding: '10px 16px', fontFamily: 'system-ui, -apple-system, sans-serif',
+      padding: '6px 12px', fontFamily: 'system-ui, -apple-system, sans-serif',
       fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-      boxShadow: '0 4px 12px rgba(0,0,0,.25)'
+      boxShadow: '0 2px 8px rgba(0,0,0,.25)'
     });
     btn.onmouseover = () => (btn.style.background = '#108000');
     btn.onmouseout = () => (btn.style.background = '#2ca01c');
@@ -53,7 +53,7 @@
     const overlay = document.createElement('div');
     overlay.id = PICKER_ID;
     Object.assign(overlay.style, {
-      position: 'fixed', bottom: '70px', right: '24px', zIndex: '2147483647',
+      position: 'fixed', top: '44px', right: '120px', zIndex: '2147483647',
       background: '#fff', border: '1px solid #d4d7dc', borderRadius: '8px',
       padding: '14px', boxShadow: '0 8px 24px rgba(0,0,0,.18)',
       fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '14px',
@@ -147,7 +147,7 @@
   function makeStatus(text) {
     const s = document.createElement('div');
     Object.assign(s.style, {
-      position: 'fixed', bottom: '24px', right: '24px', zIndex: '2147483647',
+      position: 'fixed', top: '44px', right: '120px', zIndex: '2147483647',
       background: '#393a3d', color: '#fff', padding: '10px 14px',
       borderRadius: '6px', fontFamily: 'system-ui', fontSize: '13px',
       boxShadow: '0 4px 12px rgba(0,0,0,.2)', maxWidth: '320px'
