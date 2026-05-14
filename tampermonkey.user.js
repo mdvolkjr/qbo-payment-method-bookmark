@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         QBO Bulk Payment Method
-// @namespace    qbo-bulk-payment-method
-// @version      2.0
-// @description  Adds a button on the QBO Bank Deposit page to set all Payment Method fields at once
+// @name         QBO Bulk Deposit Fields
+// @namespace    qbo-bulk-deposit-fields
+// @version      2.1
+// @description  Adds buttons on the QBO Bank Deposit page to bulk-set Payment Method and Account fields
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
 // @grant        none
@@ -12,68 +12,79 @@
 (function () {
   'use strict';
 
-  const VALUES = ['Check', 'Clio Payments', 'LawPay'];
-  const BUTTON_ID = 'qbo-bulk-pm-btn';
-  const PICKER_ID = 'qbo-bulk-pm-picker';
+  const PM_VALUES = ['Check', 'Clio Payments', 'LawPay'];
+  const ACCT_VALUES = ['Operating Account - 2104', 'Expense Account - 0387', 'IOLTA - 5899'];
+
+  const PM_BTN_ID   = 'qbo-bulk-pm-btn';
+  const ACCT_BTN_ID = 'qbo-bulk-acct-btn';
+  const PICKER_ID   = 'qbo-bulk-picker';
 
   setInterval(() => {
     if (location.pathname.startsWith('/app/deposit')) {
-      injectButton();
+      injectButton(PM_BTN_ID,   '💳 Set Payment Methods', '120px', '#2ca01c', '#108000',
+                   () => showPicker('Set ALL Payment Methods to:', PM_VALUES, 'payment method', '120px'));
+      injectButton(ACCT_BTN_ID, '🏦 Set Account',          '300px', '#0077c5', '#005a96',
+                   () => showPicker('Set ALL Accounts to:', ACCT_VALUES, 'account', '300px'));
     } else {
-      const btn = document.getElementById(BUTTON_ID);
-      if (btn) btn.remove();
+      [PM_BTN_ID, ACCT_BTN_ID, PICKER_ID].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+      });
     }
   }, 1000);
 
-  function injectButton() {
-    if (document.getElementById(BUTTON_ID)) return;
-
+  function injectButton(id, label, right, bg, bgHover, onClick) {
+    if (document.getElementById(id)) return;
     const btn = document.createElement('button');
-    btn.id = BUTTON_ID;
-    btn.textContent = '💳 Set Payment Methods';
+    btn.id = id;
+    btn.textContent = label;
     Object.assign(btn.style, {
-      position: 'fixed', top: '8px', right: '120px', zIndex: '2147483647',
-      background: '#2ca01c', color: '#fff', border: 'none', borderRadius: '6px',
+      position: 'fixed', top: '8px', right: right, zIndex: '2147483647',
+      background: bg, color: '#fff', border: 'none', borderRadius: '6px',
       padding: '6px 12px', fontFamily: 'system-ui, -apple-system, sans-serif',
       fontSize: '13px', fontWeight: '600', cursor: 'pointer',
       boxShadow: '0 2px 8px rgba(0,0,0,.25)'
     });
-    btn.onmouseover = () => (btn.style.background = '#108000');
-    btn.onmouseout = () => (btn.style.background = '#2ca01c');
-    btn.onclick = showPicker;
+    btn.onmouseover = () => (btn.style.background = bgHover);
+    btn.onmouseout  = () => (btn.style.background = bg);
+    btn.onclick = onClick;
     document.body.appendChild(btn);
   }
 
-  function showPicker() {
+  function showPicker(title, values, columnHeader, right) {
     const existing = document.getElementById(PICKER_ID);
     if (existing) { existing.remove(); return; }
 
     const overlay = document.createElement('div');
     overlay.id = PICKER_ID;
     Object.assign(overlay.style, {
-      position: 'fixed', top: '44px', right: '120px', zIndex: '2147483647',
+      position: 'fixed', top: '44px', right: right, zIndex: '2147483647',
       background: '#fff', border: '1px solid #d4d7dc', borderRadius: '8px',
       padding: '14px', boxShadow: '0 8px 24px rgba(0,0,0,.18)',
       fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '14px',
-      width: '220px'
+      width: '240px'
     });
 
-    const title = document.createElement('div');
-    title.textContent = 'Set ALL Payment Methods to:';
-    Object.assign(title.style, { fontWeight: '600', marginBottom: '10px', color: '#393a3d' });
-    overlay.appendChild(title);
+    const titleEl = document.createElement('div');
+    titleEl.textContent = title;
+    Object.assign(titleEl.style, { fontWeight: '600', marginBottom: '10px', color: '#393a3d' });
+    overlay.appendChild(titleEl);
 
-    VALUES.forEach(v => {
+    const isAcct = columnHeader === 'account';
+    const bg     = isAcct ? '#0077c5' : '#2ca01c';
+    const bgHov  = isAcct ? '#005a96' : '#108000';
+
+    values.forEach(v => {
       const b = document.createElement('button');
       b.textContent = v;
       Object.assign(b.style, {
         display: 'block', width: '100%', margin: '4px 0', padding: '8px 12px',
-        background: '#2ca01c', color: '#fff', border: 'none', borderRadius: '4px',
-        cursor: 'pointer', fontSize: '14px', fontWeight: '500'
+        background: bg, color: '#fff', border: 'none', borderRadius: '4px',
+        cursor: 'pointer', fontSize: '13px', fontWeight: '500', textAlign: 'left'
       });
-      b.onmouseover = () => (b.style.background = '#108000');
-      b.onmouseout = () => (b.style.background = '#2ca01c');
-      b.onclick = () => { overlay.remove(); runBulkSet(v); };
+      b.onmouseover = () => (b.style.background = bgHov);
+      b.onmouseout  = () => (b.style.background = bg);
+      b.onclick = () => { overlay.remove(); runBulkSet(columnHeader, v); };
       overlay.appendChild(b);
     });
 
@@ -92,28 +103,27 @@
 
   // ── Bulk set ──────────────────────────────────────────────────────────────
 
-  async function runBulkSet(value) {
-    const status = makeStatus('Finding payment method cells...');
+  // columnHeader: exact text of the column header (case-insensitive), e.g. 'payment method' or 'account'
+  async function runBulkSet(columnHeader, value) {
+    const status = makeStatus('Finding ' + columnHeader + ' cells...');
     try {
-      const cells = findPaymentMethodCells();
+      const cells = findColumnCells(columnHeader);
       const total = cells.length;
 
       if (total === 0) {
         status.style.background = '#d52b1e';
-        status.textContent = 'No payment method cells found. Make sure you are on the Bank Deposit page with rows loaded.';
+        status.textContent = 'No "' + columnHeader + '" column found. Make sure rows are loaded.';
         setTimeout(() => status.remove(), 5000);
         return;
       }
 
       status.textContent = 'Found ' + total + ' row(s). Setting to "' + value + '"...';
       let updated = 0;
-      const usedInputs = new Set(); // never re-use an input we already set
+      const usedInputs = new Set();
 
-      // Re-query cells on every iteration — React re-renders the table after each
-      // dropdown selection, which detaches previously cached cell elements.
       for (let i = 0; i < total; i++) {
         try {
-          const liveCells = findPaymentMethodCells();
+          const liveCells = findColumnCells(columnHeader);
           console.log('[QBO bulk] Row', i, '— live cell count:', liveCells.length);
           const cell = liveCells[i];
           if (!cell) {
@@ -132,14 +142,13 @@
           await activateCell(cell);
           await sleep(400);
 
-          // Log all visible comboboxes at this moment
           const allInputs = Array.from(document.querySelectorAll(
             'input[role="combobox"], input[aria-autocomplete], input[aria-haspopup="listbox"]'
           ));
-          console.log('[QBO bulk] Row', i, '— comboboxes on page after click:',
+          console.log('[QBO bulk] Row', i, '— comboboxes after click:',
             allInputs.map(inp => {
               const r = inp.getBoundingClientRect();
-              return { top: Math.round(r.top), left: Math.round(r.left), value: inp.value, inExclude: usedInputs.has(inp) };
+              return { top: Math.round(r.top), left: Math.round(r.left), value: inp.value, excluded: usedInputs.has(inp) };
             })
           );
 
@@ -171,17 +180,42 @@
     }
   }
 
-  // Try every available technique to make QBO reveal the combobox input.
-  // Caller must scroll into view and capture cellRect before calling this.
+  // Find tbody cells in the column whose header matches the given text.
+  function findColumnCells(columnHeader) {
+    const needle = columnHeader.trim().toUpperCase();
+    const pmHeader = Array.from(document.querySelectorAll('*')).find(
+      el => el.children.length === 0 && el.textContent.trim().toUpperCase() === needle
+    );
+    if (!pmHeader) return [];
+
+    const headerCell = pmHeader.closest('th, td');
+    if (!headerCell) return [];
+
+    const headerRect = headerCell.getBoundingClientRect();
+    if (headerRect.width === 0) return [];
+    const headerCx = (headerRect.left + headerRect.right) / 2;
+
+    const table = headerCell.closest('table');
+    if (!table) return [];
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return [];
+
+    return Array.from(tbody.querySelectorAll('td')).filter(td => {
+      const r = td.getBoundingClientRect();
+      if (r.width === 0) return false;
+      const tdCx = (r.left + r.right) / 2;
+      return Math.abs(tdCx - headerCx) < 30;
+    });
+  }
+
+  // ── Cell activation ───────────────────────────────────────────────────────
+
   async function activateCell(cell) {
     const rect = cell.getBoundingClientRect();
     const cx = Math.round((rect.left + rect.right) / 2);
     const cy = Math.round((rect.top + rect.bottom) / 2);
-
-    // Use the actual on-screen element at those coordinates
     const target = document.elementFromPoint(cx, cy) || cell;
 
-    // 1. Full pointer + mouse event sequence with real coordinates
     const pOpts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1, isPrimary: true, pressure: 0.5, view: window };
     const mOpts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, button: 0, buttons: 1, view: window };
     target.dispatchEvent(new PointerEvent('pointerover',  { ...pOpts, pressure: 0 }));
@@ -197,10 +231,7 @@
 
     await sleep(80);
 
-    // 2. Also try calling React's onClick handler directly off the fiber tree —
-    //    bypasses any isTrusted checks that might filter synthetic events
     fireReactClick(target, cx, cy);
-    // Walk up a few ancestors too, in case the handler is on a wrapper
     let el = target.parentElement;
     for (let i = 0; i < 5 && el && el !== document.body; i++) {
       fireReactClick(el, cx, cy);
@@ -208,7 +239,6 @@
     }
   }
 
-  // Call a React onClick or onMouseDown handler found in the fiber tree.
   function fireReactClick(element, cx, cy) {
     try {
       const fiberKey = Object.keys(element).find(k =>
@@ -235,34 +265,8 @@
     } catch (_) { /* ignore */ }
   }
 
-  // Find the PAYMENT METHOD column cells using horizontal position matching.
-  function findPaymentMethodCells() {
-    const pmHeader = Array.from(document.querySelectorAll('*')).find(
-      el => el.children.length === 0 && el.textContent.trim().toUpperCase() === 'PAYMENT METHOD'
-    );
-    if (!pmHeader) return [];
+  // ── Input search ──────────────────────────────────────────────────────────
 
-    const headerCell = pmHeader.closest('th, td');
-    if (!headerCell) return [];
-
-    const headerRect = headerCell.getBoundingClientRect();
-    if (headerRect.width === 0) return [];
-    const headerCx = (headerRect.left + headerRect.right) / 2;
-
-    const table = headerCell.closest('table');
-    if (!table) return [];
-    const tbody = table.querySelector('tbody');
-    if (!tbody) return [];
-
-    return Array.from(tbody.querySelectorAll('td')).filter(td => {
-      const r = td.getBoundingClientRect();
-      if (r.width === 0) return false;
-      const tdCx = (r.left + r.right) / 2;
-      return Math.abs(tdCx - headerCx) < 30;
-    });
-  }
-
-  // Poll for a combobox input near the given cell rect, skipping already-used inputs.
   async function waitForInputNearCell(rect, timeout, exclude = new Set()) {
     const deadline = Date.now() + timeout;
     const cellCy = (rect.top + rect.bottom) / 2;
@@ -285,6 +289,8 @@
     }
     return null;
   }
+
+  // ── Status overlay ────────────────────────────────────────────────────────
 
   function makeStatus(text) {
     const s = document.createElement('div');
