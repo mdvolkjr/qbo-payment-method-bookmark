@@ -70,7 +70,7 @@
     Object.assign(titleEl.style, { fontWeight: '600', marginBottom: '10px', color: '#393a3d' });
     overlay.appendChild(titleEl);
 
-    const isAcct = columnHeader === 'account';
+    const isAcct = columnHeader === 'account-direct';
     const bg     = isAcct ? '#0077c5' : '#2ca01c';
     const bgHov  = isAcct ? '#005a96' : '#108000';
 
