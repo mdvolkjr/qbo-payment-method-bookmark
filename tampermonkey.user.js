@@ -150,10 +150,13 @@
   function makeStatus(text) {
     const s = document.createElement('div');
     Object.assign(s.style, {
-      position: 'fixed', top: '44px', right: '120px', zIndex: '2147483647',
-      background: '#393a3d', color: '#fff', padding: '10px 14px',
-      borderRadius: '6px', fontFamily: 'system-ui', fontSize: '13px',
-      boxShadow: '0 4px 12px rgba(0,0,0,.2)', maxWidth: '320px'
+      position: 'fixed', top: '50%', left: '50%',
+      transform: 'translate(-50%, -50%)',
+      zIndex: '2147483647',
+      background: '#393a3d', color: '#fff', padding: '18px 24px',
+      borderRadius: '8px', fontFamily: 'system-ui', fontSize: '15px',
+      fontWeight: '600', boxShadow: '0 8px 32px rgba(0,0,0,.5)',
+      maxWidth: '500px', textAlign: 'center'
     });
     s.textContent = text;
     document.body.appendChild(s);
