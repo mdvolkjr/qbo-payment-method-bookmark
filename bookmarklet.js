@@ -1,0 +1,199 @@
+(function () {
+  'use strict';
+
+  const VALUES = ['Check', 'Clio Payments', 'LawPay'];
+
+  const existing = document.getElementById('qbo-bulk-pm-picker');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'qbo-bulk-pm-picker';
+  Object.assign(overlay.style, {
+    position: 'fixed', top: '90px', right: '24px', zIndex: '2147483647',
+    background: '#fff', border: '1px solid #d4d7dc', borderRadius: '8px',
+    padding: '14px', boxShadow: '0 8px 24px rgba(0,0,0,.18)',
+    fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '14px',
+    width: '220px'
+  });
+
+  const title = document.createElement('div');
+  title.textContent = 'Set ALL Payment Methods to:';
+  Object.assign(title.style, { fontWeight: '600', marginBottom: '10px', color: '#393a3d' });
+  overlay.appendChild(title);
+
+  VALUES.forEach(v => {
+    const btn = document.createElement('button');
+    btn.textContent = v;
+    Object.assign(btn.style, {
+      display: 'block', width: '100%', margin: '4px 0', padding: '8px 12px',
+      background: '#2ca01c', color: '#fff', border: 'none', borderRadius: '4px',
+      cursor: 'pointer', fontSize: '14px', fontWeight: '500'
+    });
+    btn.onmouseover = () => (btn.style.background = '#108000');
+    btn.onmouseout  = () => (btn.style.background = '#2ca01c');
+    btn.onclick = () => { overlay.remove(); runBulkSet(v); };
+    overlay.appendChild(btn);
+  });
+
+  const cancel = document.createElement('button');
+  cancel.textContent = 'Cancel';
+  Object.assign(cancel.style, {
+    display: 'block', width: '100%', marginTop: '8px', padding: '6px 12px',
+    background: '#f4f5f8', border: '1px solid #d4d7dc', borderRadius: '4px',
+    cursor: 'pointer', fontSize: '13px', color: '#393a3d'
+  });
+  cancel.onclick = () => overlay.remove();
+  overlay.appendChild(cancel);
+
+  document.body.appendChild(overlay);
+
+  // ── Bulk set ──────────────────────────────────────────────────────────────
+
+  async function runBulkSet(value) {
+    const status = makeStatus('Setting payment methods to "' + value + '"...');
+    try {
+      const inputs = findPaymentMethodInputs();
+      console.log('[QBO bulk] Found', inputs.length, 'Payment Method inputs', inputs);
+
+      let updated = 0;
+      for (const input of inputs) {
+        try {
+          await setComboValue(input, value);
+          updated++;
+        } catch (e) {
+          console.warn('[QBO bulk] Failed on', input, e);
+        }
+      }
+
+      status.textContent = 'Updated ' + updated + ' of ' + inputs.length + ' rows.';
+      if (updated === 0) {
+        status.style.background = '#d52b1e';
+        status.textContent += ' (No matches — see console.)';
+      }
+      setTimeout(() => status.remove(), 3500);
+    } catch (e) {
+      console.error('[QBO bulk] Error', e);
+      status.textContent = 'Error — see console';
+      status.style.background = '#d52b1e';
+      setTimeout(() => status.remove(), 4500);
+    }
+  }
+
+  function makeStatus(text) {
+    const s = document.createElement('div');
+    Object.assign(s.style, {
+      position: 'fixed', top: '90px', right: '24px', zIndex: '2147483647',
+      background: '#393a3d', color: '#fff', padding: '10px 14px',
+      borderRadius: '6px', fontFamily: 'system-ui', fontSize: '13px',
+      boxShadow: '0 4px 12px rgba(0,0,0,.2)', maxWidth: '320px'
+    });
+    s.textContent = text;
+    document.body.appendChild(s);
+    return s;
+  }
+
+  // ── Find inputs ───────────────────────────────────────────────────────────
+  // QBO stamps each payment-method cell with data-testid="line_payment_method_N__textField".
+  // Fall back to broader selectors only if that yields nothing.
+
+  function findPaymentMethodInputs() {
+    // 1. Precise: data-testid contains "payment_method" (handles _1_, _2_, … suffixes)
+    const precise = Array.from(
+      document.querySelectorAll('input[data-testid*="payment_method"]')
+    );
+    if (precise.length) return precise;
+
+    // 2. Find the "PAYMENT METHOD" column header and walk up to the table
+    const headers = Array.from(document.querySelectorAll('div, span, th'))
+      .filter(el => el.textContent.trim().toUpperCase() === 'PAYMENT METHOD');
+    if (headers.length) {
+      const table = headers[0].closest(
+        'table, [role="table"], section, div[class*="Deposit"], div[class*="deposit"], form'
+      );
+      if (table) {
+        const found = Array.from(table.querySelectorAll(
+          'input[role="combobox"], input[aria-haspopup="listbox"], input[aria-autocomplete="list"]'
+        ));
+        if (found.length) return found;
+      }
+    }
+
+    // 3. Last resort: every combobox on the page
+    return Array.from(document.querySelectorAll(
+      'input[role="combobox"], input[aria-autocomplete]'
+    ));
+  }
+
+  // ── Set a React-controlled combobox ───────────────────────────────────────
+
+  async function setComboValue(input, value) {
+    input.focus();
+    await sleep(60);
+
+    // Write value through React's own input descriptor so React sees the change
+    const nativeSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value'
+    ).set;
+    nativeSetter.call(input, value);
+    input.dispatchEvent(new Event('input',  { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(200);
+
+    // Try the listbox this input controls first (most reliable)
+    const opt = findOptionForInput(input, value) || findOptionGlobal(value);
+    if (opt) {
+      opt.click();
+      await sleep(80);
+      return;
+    }
+
+    // Fallback: arrow-down to open, then Enter to accept first highlighted item
+    input.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true
+    }));
+    await sleep(120);
+
+    const opt2 = findOptionForInput(input, value) || findOptionGlobal(value);
+    if (opt2) {
+      opt2.click();
+      await sleep(80);
+      return;
+    }
+
+    input.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true
+    }));
+    input.dispatchEvent(new KeyboardEvent('keyup',  {
+      key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true
+    }));
+    input.blur();
+    await sleep(80);
+  }
+
+  // Look inside the listbox that this specific input controls
+  function findOptionForInput(input, value) {
+    const listboxId = input.getAttribute('aria-controls');
+    if (!listboxId) return null;
+    const listbox = document.getElementById(listboxId);
+    if (!listbox) return null;
+    return pickOption(Array.from(listbox.querySelectorAll('[role="option"], li')), value);
+  }
+
+  // Fallback: search entire page for any visible option element
+  function findOptionGlobal(value) {
+    return pickOption(
+      Array.from(document.querySelectorAll('[role="option"], li[role="option"]')),
+      value
+    );
+  }
+
+  function pickOption(options, value) {
+    const v = value.trim().toLowerCase();
+    return (
+      options.find(o => o.textContent.trim().toLowerCase() === v) ||
+      options.find(o => o.textContent.trim().toLowerCase().includes(v))
+    );
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+})();
