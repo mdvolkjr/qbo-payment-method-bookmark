@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Deposit Fields
 // @namespace    qbo-bulk-deposit-fields
-// @version      2.1
+// @version      2.2
 // @description  Adds buttons on the QBO Bank Deposit page to bulk-set Payment Method and Account fields
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -24,7 +24,7 @@
       injectButton(PM_BTN_ID,   '💳 Set Payment Methods', '120px', '#2ca01c', '#108000',
                    () => showPicker('Set ALL Payment Methods to:', PM_VALUES, 'payment method', '120px'));
       injectButton(ACCT_BTN_ID, '🏦 Set Account',          '300px', '#0077c5', '#005a96',
-                   () => showPicker('Set ALL Accounts to:', ACCT_VALUES, 'account', '300px'));
+                   () => showPicker('Set ALL Accounts to:', ACCT_VALUES, 'account-direct', '300px'));
     } else {
       [PM_BTN_ID, ACCT_BTN_ID, PICKER_ID].forEach(id => {
         const el = document.getElementById(id);
@@ -105,6 +105,58 @@
 
   // columnHeader: exact text of the column header (case-insensitive), e.g. 'payment method' or 'account'
   async function runBulkSet(columnHeader, value) {
+    // Account inputs are always in the DOM — set them directly without clicking.
+    // Payment method inputs are lazy-rendered — must click each cell first.
+    if (columnHeader === 'account-direct') {
+      await runBulkSetDirect(value);
+    } else {
+      await runBulkSetViaCell(columnHeader, value);
+    }
+  }
+
+  // Account fields: inputs already exist in the DOM, no cell-click needed.
+  async function runBulkSetDirect(value) {
+    const status = makeStatus('Finding account fields...');
+    try {
+      const inputs = Array.from(document.querySelectorAll(
+        'input[data-testid*="payment_account"], input[aria-label="Choose an account"]'
+      ));
+      const total = inputs.length;
+
+      if (total === 0) {
+        status.style.background = '#d52b1e';
+        status.textContent = 'No account fields found. Make sure rows are loaded.';
+        setTimeout(() => status.remove(), 5000);
+        return;
+      }
+
+      status.textContent = 'Found ' + total + ' account(s). Setting to "' + value + '"...';
+      let updated = 0;
+
+      for (let i = 0; i < inputs.length; i++) {
+        status.textContent = 'Setting account ' + (i + 1) + ' of ' + total + '...';
+        try {
+          await setComboValue(inputs[i], value);
+          updated++;
+          await sleep(300);
+        } catch (e) {
+          console.warn('[QBO bulk] Account row', i, 'failed:', e.message);
+        }
+      }
+
+      status.textContent = 'Updated ' + updated + ' of ' + total + ' accounts.';
+      if (updated === 0) status.style.background = '#d52b1e';
+      setTimeout(() => status.remove(), 3500);
+    } catch (e) {
+      console.error('[QBO bulk] Error', e);
+      status.textContent = 'Error: ' + e.message;
+      status.style.background = '#d52b1e';
+      setTimeout(() => status.remove(), 5000);
+    }
+  }
+
+  // Payment method fields: inputs are lazy-rendered, must click each cell to reveal.
+  async function runBulkSetViaCell(columnHeader, value) {
     const status = makeStatus('Finding ' + columnHeader + ' cells...');
     try {
       const cells = findColumnCells(columnHeader);
@@ -122,6 +174,7 @@
       const usedInputs = new Set();
 
       for (let i = 0; i < total; i++) {
+        status.textContent = 'Row ' + (i + 1) + ' of ' + total + '...';
         try {
           const liveCells = findColumnCells(columnHeader);
           console.log('[QBO bulk] Row', i, '— live cell count:', liveCells.length);
