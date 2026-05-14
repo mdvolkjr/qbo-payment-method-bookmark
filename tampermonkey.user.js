@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Deposit Fields
 // @namespace    qbo-bulk-deposit-fields
-// @version      2.4
+// @version      2.5
 // @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -224,27 +224,48 @@ async function runViaCell(value) {
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 function findColumnCells(headerText) {
-  var headerEl = Array.from(document.querySelectorAll('*')).find(function(el) {
-    return el.children.length === 0 && el.textContent.trim().toUpperCase() === headerText;
+  var upper = headerText.toUpperCase();
+  var headerCells = [];
+
+  // Find th elements whose text starts with headerText — handles sort-icon text appended after.
+  // This catches the top "Select payments" table whose header has a child sort-icon element.
+  Array.from(document.querySelectorAll('th')).forEach(function(th) {
+    var txt = th.textContent.trim().toUpperCase();
+    if (txt === upper || txt.indexOf(upper) === 0) {
+      headerCells.push(th);
+    }
   });
-  if (!headerEl) { console.warn('[QBO] header not found:', headerText); return []; }
 
-  var headerCell = headerEl.closest('th, td');
-  if (!headerCell) return [];
-  var headerRect = headerCell.getBoundingClientRect();
-  if (headerRect.width === 0) return [];
-  var headerCx = (headerRect.left + headerRect.right) / 2;
-
-  var table = headerCell.closest('table');
-  if (!table) return [];
-  var tbody = table.querySelector('tbody');
-  if (!tbody) return [];
-
-  return Array.from(tbody.querySelectorAll('td')).filter(function(td) {
-    var r = td.getBoundingClientRect();
-    if (r.width === 0) return false;
-    return Math.abs((r.left + r.right) / 2 - headerCx) < 30;
+  // Also catch td-based plain-text headers (bottom "Add funds" table uses these).
+  Array.from(document.querySelectorAll('td')).forEach(function(td) {
+    if (td.textContent.trim().toUpperCase() === upper && headerCells.indexOf(td) === -1) {
+      headerCells.push(td);
+    }
   });
+
+  if (headerCells.length === 0) {
+    console.warn('[QBO] header not found:', headerText);
+    return [];
+  }
+
+  var allBodyCells = [];
+  headerCells.forEach(function(headerCell) {
+    var headerRect = headerCell.getBoundingClientRect();
+    if (headerRect.width === 0) return;
+    var headerCx = (headerRect.left + headerRect.right) / 2;
+    var table = headerCell.closest('table');
+    if (!table) return;
+    var tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    var cells = Array.from(tbody.querySelectorAll('td')).filter(function(td) {
+      var r = td.getBoundingClientRect();
+      if (r.width === 0) return false;
+      return Math.abs((r.left + r.right) / 2 - headerCx) < 30;
+    });
+    allBodyCells = allBodyCells.concat(cells);
+  });
+
+  return allBodyCells;
 }
 
 async function activateCell(cell) {
