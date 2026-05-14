@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Payment Method
 // @namespace    qbo-bulk-payment-method
-// @version      1.6
+// @version      1.7
 // @description  Adds a button on the QBO Bank Deposit page to set all Payment Method fields at once
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -107,6 +107,7 @@
 
       status.textContent = 'Found ' + total + ' row(s). Setting to "' + value + '"...';
       let updated = 0;
+      const usedInputs = new Set(); // never re-use an input we already set
 
       for (const cell of cells) {
         try {
@@ -114,15 +115,18 @@
           await sleep(400);
 
           const cellRect = cell.getBoundingClientRect();
-          const input = await waitForInputNearCell(cellRect, 1500);
+          const input = await waitForInputNearCell(cellRect, 1500, usedInputs);
           if (!input) {
             console.warn('[QBO bulk] No input appeared near cell', cell);
             continue;
           }
 
+          usedInputs.add(input);
           await setComboValue(input, value);
           updated++;
-          await sleep(200);
+          // Blur to collapse the dropdown so it doesn't interfere with the next row
+          input.blur();
+          await sleep(300);
         } catch (e) {
           console.warn('[QBO bulk] Failed on cell', cell, e);
         }
@@ -233,8 +237,8 @@
     });
   }
 
-  // Poll for a combobox input that overlaps or is near the given cell rect.
-  async function waitForInputNearCell(rect, timeout) {
+  // Poll for a combobox input near the given cell rect, skipping already-used inputs.
+  async function waitForInputNearCell(rect, timeout, exclude = new Set()) {
     const deadline = Date.now() + timeout;
     const cellCy = (rect.top + rect.bottom) / 2;
     const cellCx = (rect.left + rect.right) / 2;
@@ -244,8 +248,8 @@
         'input[role="combobox"], input[aria-autocomplete], input[aria-haspopup="listbox"]'
       ));
       const match = candidates.find(input => {
+        if (exclude.has(input)) return false;
         const r = input.getBoundingClientRect();
-        // Accept any visible input whose center is within 80px of the cell center
         if (r.width === 0 && r.height === 0) return false;
         const inputCy = (r.top + r.bottom) / 2;
         const inputCx = (r.left + r.right) / 2;
