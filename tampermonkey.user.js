@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Payment Method
 // @namespace    qbo-bulk-payment-method
-// @version      1.4
+// @version      1.5
 // @description  Adds a button on the QBO Bank Deposit page to set all Payment Method fields at once
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -16,8 +16,6 @@
   const BUTTON_ID = 'qbo-bulk-pm-btn';
   const PICKER_ID = 'qbo-bulk-pm-picker';
 
-  // Poll every second — simpler and more reliable than MutationObserver
-  // for SPA navigation. Injects the button on /app/deposit, removes it elsewhere.
   setInterval(() => {
     if (location.pathname.startsWith('/app/deposit')) {
       injectButton();
@@ -28,7 +26,7 @@
   }, 1000);
 
   function injectButton() {
-    if (document.getElementById(BUTTON_ID)) return; // already there
+    if (document.getElementById(BUTTON_ID)) return;
 
     const btn = document.createElement('button');
     btn.id = BUTTON_ID;
@@ -112,16 +110,20 @@
 
       for (const cell of cells) {
         try {
-          // Click the cell to make QBO render the input inside it
-          cell.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-          cell.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true, cancelable: true }));
-          cell.click();
-          await sleep(200);
+          const cellRect = cell.getBoundingClientRect();
 
-          // Wait for the input to appear inside this cell
-          const input = await waitForInputInCell(cell, 1500);
+          // Click the deepest child element — QBO may ignore clicks on the outer TD
+          const clickTarget = deepestChild(cell) || cell;
+          clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+          clickTarget.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true, cancelable: true }));
+          clickTarget.click();
+          await sleep(300);
+
+          // Input may render inside the TD or as a React portal elsewhere on the page.
+          // Search by screen position overlap rather than DOM ancestry.
+          const input = await waitForInputNearRect(cellRect, 1500);
           if (!input) {
-            console.warn('[QBO bulk] No input appeared in cell', cell);
+            console.warn('[QBO bulk] No input appeared near cell', cell);
             continue;
           }
 
@@ -144,32 +146,26 @@
     }
   }
 
-  // Find the cells in the PAYMENT METHOD column using horizontal position matching.
-  // QBO thead and tbody have different numbers of children, so raw colIndex fails.
-  // Instead we find the header TH's x-center and match tbody TDs by position.
+  // Find the PAYMENT METHOD column cells using horizontal position matching.
+  // THEAD and TBODY can have different child counts, so colIndex is unreliable.
   function findPaymentMethodCells() {
-    // Find the leaf element whose text is exactly "PAYMENT METHOD"
     const pmHeader = Array.from(document.querySelectorAll('*')).find(
       el => el.children.length === 0 && el.textContent.trim().toUpperCase() === 'PAYMENT METHOD'
     );
     if (!pmHeader) return [];
 
-    // Walk up to the TH that contains it
     const headerCell = pmHeader.closest('th, td');
     if (!headerCell) return [];
 
-    // Get the horizontal center of the header cell
     const headerRect = headerCell.getBoundingClientRect();
     if (headerRect.width === 0) return [];
     const headerCx = (headerRect.left + headerRect.right) / 2;
 
-    // Find the table and tbody
     const table = headerCell.closest('table');
     if (!table) return [];
     const tbody = table.querySelector('tbody');
     if (!tbody) return [];
 
-    // Match all TD elements whose horizontal center is within 30px of the header center
     return Array.from(tbody.querySelectorAll('td')).filter(td => {
       const r = td.getBoundingClientRect();
       if (r.width === 0) return false;
@@ -178,12 +174,29 @@
     });
   }
 
-  // Poll until an input appears inside a cell (after clicking it)
-  async function waitForInputInCell(cell, timeout) {
+  // Walk to the deepest first-child so we click the actual rendered content,
+  // not the outer wrapper that QBO may not listen to.
+  function deepestChild(el) {
+    let cur = el;
+    while (cur.children.length > 0) cur = cur.children[0];
+    return cur === el ? null : cur;
+  }
+
+  // Poll for any combobox input whose bounding rect overlaps the given rect.
+  // Handles React portals where the input renders outside the TD in the DOM.
+  async function waitForInputNearRect(rect, timeout) {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
-      const input = cell.querySelector('input[role="combobox"], input[aria-autocomplete], input[type="text"]');
-      if (input) return input;
+      const candidates = Array.from(document.querySelectorAll(
+        'input[role="combobox"], input[aria-autocomplete], input[aria-haspopup="listbox"]'
+      ));
+      const match = candidates.find(input => {
+        const r = input.getBoundingClientRect();
+        return r.width > 0 &&
+          r.left < rect.right && r.right > rect.left &&
+          r.top  < rect.bottom && r.bottom > rect.top;
+      });
+      if (match) return match;
       await sleep(50);
     }
     return null;
@@ -208,7 +221,6 @@
   // ── Set a React-controlled combobox ───────────────────────────────────────
 
   async function setComboValue(input, value) {
-    // QBO inputs need a real click to become interactive — focus() alone is not enough
     input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
     input.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true, cancelable: true }));
     input.dispatchEvent(new MouseEvent('click',     { bubbles: true, cancelable: true }));
