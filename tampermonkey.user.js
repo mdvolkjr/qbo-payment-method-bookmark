@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Payment Method
 // @namespace    qbo-bulk-payment-method
-// @version      1.8
+// @version      1.9
 // @description  Adds a button on the QBO Bank Deposit page to set all Payment Method fields at once
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -120,10 +120,12 @@
             continue;
           }
 
+          // Capture rect BEFORE clicking — the click triggers a React re-render
+          // that detaches the cell, making post-click getBoundingClientRect() return zeros.
+          const cellRect = cell.getBoundingClientRect();
+
           await activateCell(cell);
           await sleep(400);
-
-          const cellRect = cell.getBoundingClientRect();
           const input = await waitForInputNearCell(cellRect, 1500, usedInputs);
           if (!input) {
             console.warn('[QBO bulk] No input appeared near cell', i);
