@@ -52,20 +52,34 @@
   async function runBulkSet(value) {
     const status = makeStatus('Setting payment methods to "' + value + '"...');
     try {
-      const inputs = findPaymentMethodInputs();
-      console.log('[QBO bulk] Found', inputs.length, 'Payment Method inputs', inputs);
+      // Count total rows upfront for the status message
+      const total = findPaymentMethodInputs().length;
+      console.log('[QBO bulk] Found', total, 'Payment Method inputs');
 
       let updated = 0;
-      for (const input of inputs) {
+      const MAX = 20; // safety cap against infinite loops
+
+      // Re-query after each row — React re-renders the table after each
+      // dropdown selection, which detaches previously cached input references.
+      while (updated < MAX) {
+        const inputs = findPaymentMethodInputs();
+        // Skip inputs already set to the target value
+        const input = inputs.find(
+          i => i.value.trim().toLowerCase() !== value.trim().toLowerCase()
+        );
+        if (!input) break;
+
         try {
           await setComboValue(input, value);
           updated++;
+          await sleep(150); // let React settle before re-querying
         } catch (e) {
           console.warn('[QBO bulk] Failed on', input, e);
+          break;
         }
       }
 
-      status.textContent = 'Updated ' + updated + ' of ' + inputs.length + ' rows.';
+      status.textContent = 'Updated ' + updated + ' of ' + total + ' rows.';
       if (updated === 0) {
         status.style.background = '#d52b1e';
         status.textContent += ' (No matches — see console.)';
