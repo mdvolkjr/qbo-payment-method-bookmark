@@ -52,7 +52,7 @@
       boxShadow: '0 4px 12px rgba(0,0,0,.25)'
     });
     btn.onmouseover = () => (btn.style.background = '#108000');
-    btn.onmouseout  = () => (btn.style.background = '#2ca01c');
+    btn.onmouseout = () => (btn.style.background = '#2ca01c');
     btn.onclick = showPicker;
     document.body.appendChild(btn);
   }
