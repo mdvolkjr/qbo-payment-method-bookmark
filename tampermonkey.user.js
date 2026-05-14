@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         QBO Bulk Deposit Fields
 // @namespace    qbo-bulk-deposit-fields
-// @version      2.2
-// @description  Adds buttons on the QBO Bank Deposit page to bulk-set Payment Method and Account fields
+// @version      2.3
+// @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
 // @grant        none
@@ -10,423 +10,358 @@
 // ==/UserScript==
 
 (function () {
-  'use strict';
+'use strict';
 
-  const PM_VALUES = ['Check', 'Clio Payments', 'LawPay'];
-  const ACCT_VALUES = ['Operating Account - 2104', 'Expense Account - 0387', 'IOLTA - 5899'];
+var PM_VALUES   = ['Check', 'Clio Payments', 'LawPay'];
+var ACCT_VALUES = ['Operating Account - 2104', 'Expense Account - 0387', 'IOLTA - 5899'];
 
-  const PM_BTN_ID   = 'qbo-bulk-pm-btn';
-  const ACCT_BTN_ID = 'qbo-bulk-acct-btn';
-  const PICKER_ID   = 'qbo-bulk-picker';
-
-  setInterval(() => {
-    if (location.pathname.startsWith('/app/deposit')) {
-      injectButton(PM_BTN_ID,   '💳 Set Payment Methods', '120px', '#2ca01c', '#108000',
-                   () => showPicker('Set ALL Payment Methods to:', PM_VALUES, 'payment method', '120px'));
-      injectButton(ACCT_BTN_ID, '🏦 Set Account',          '300px', '#0077c5', '#005a96',
-                   () => showPicker('Set ALL Accounts to:', ACCT_VALUES, 'account-direct', '300px'));
-    } else {
-      [PM_BTN_ID, ACCT_BTN_ID, PICKER_ID].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.remove();
-      });
-    }
-  }, 1000);
-
-  function injectButton(id, label, right, bg, bgHover, onClick) {
-    if (document.getElementById(id)) return;
-    const btn = document.createElement('button');
-    btn.id = id;
-    btn.textContent = label;
-    Object.assign(btn.style, {
-      position: 'fixed', top: '8px', right: right, zIndex: '2147483647',
-      background: bg, color: '#fff', border: 'none', borderRadius: '6px',
-      padding: '6px 12px', fontFamily: 'system-ui, -apple-system, sans-serif',
-      fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-      boxShadow: '0 2px 8px rgba(0,0,0,.25)'
+setInterval(function () {
+  if (location.pathname.indexOf('/app/deposit') === 0) {
+    injectBtn('qbo-pm-btn',   'Set Payment Methods', '120px', '#2ca01c', '#108000', showPMPicker);
+    injectBtn('qbo-acct-btn', 'Set Account',         '290px', '#0077c5', '#005a96', showAcctPicker);
+  } else {
+    ['qbo-pm-btn','qbo-acct-btn','qbo-picker'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.remove();
     });
-    btn.onmouseover = () => (btn.style.background = bgHover);
-    btn.onmouseout  = () => (btn.style.background = bg);
-    btn.onclick = onClick;
-    document.body.appendChild(btn);
   }
+}, 1000);
 
-  function showPicker(title, values, columnHeader, right) {
-    const existing = document.getElementById(PICKER_ID);
-    if (existing) { existing.remove(); return; }
+function injectBtn(id, label, right, bg, bgHover, handler) {
+  if (document.getElementById(id)) return;
+  var btn = document.createElement('button');
+  btn.id = id;
+  btn.textContent = label;
+  btn.style.cssText = 'position:fixed;top:8px;right:' + right + ';z-index:2147483647;' +
+    'background:' + bg + ';color:#fff;border:none;border-radius:6px;' +
+    'padding:6px 12px;font-family:system-ui,sans-serif;font-size:13px;' +
+    'font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);';
+  btn.onmouseover = function() { btn.style.background = bgHover; };
+  btn.onmouseout  = function() { btn.style.background = bg; };
+  btn.onclick = handler;
+  document.body.appendChild(btn);
+}
 
-    const overlay = document.createElement('div');
-    overlay.id = PICKER_ID;
-    Object.assign(overlay.style, {
-      position: 'fixed', top: '44px', right: right, zIndex: '2147483647',
-      background: '#fff', border: '1px solid #d4d7dc', borderRadius: '8px',
-      padding: '14px', boxShadow: '0 8px 24px rgba(0,0,0,.18)',
-      fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '14px',
-      width: '240px'
-    });
+function showPMPicker()   { showPicker('Set ALL Payment Methods to:', PM_VALUES,   '#2ca01c', '#108000', 'payment method', '120px'); }
+function showAcctPicker() { showPicker('Set ALL Accounts to:',        ACCT_VALUES, '#0077c5', '#005a96', 'account',        '290px'); }
 
-    const titleEl = document.createElement('div');
-    titleEl.textContent = title;
-    Object.assign(titleEl.style, { fontWeight: '600', marginBottom: '10px', color: '#393a3d' });
-    overlay.appendChild(titleEl);
+function showPicker(title, values, bg, bgHover, mode, right) {
+  var existing = document.getElementById('qbo-picker');
+  if (existing) { existing.remove(); return; }
 
-    const isAcct = columnHeader === 'account-direct';
-    const bg     = isAcct ? '#0077c5' : '#2ca01c';
-    const bgHov  = isAcct ? '#005a96' : '#108000';
+  var overlay = document.createElement('div');
+  overlay.id = 'qbo-picker';
+  overlay.style.cssText = 'position:fixed;top:44px;right:' + right + ';z-index:2147483647;' +
+    'background:#fff;border:1px solid #d4d7dc;border-radius:8px;padding:14px;' +
+    'box-shadow:0 8px 24px rgba(0,0,0,.18);font-family:system-ui,sans-serif;font-size:14px;width:250px;';
 
-    values.forEach(v => {
-      const b = document.createElement('button');
-      b.textContent = v;
-      Object.assign(b.style, {
-        display: 'block', width: '100%', margin: '4px 0', padding: '8px 12px',
-        background: bg, color: '#fff', border: 'none', borderRadius: '4px',
-        cursor: 'pointer', fontSize: '13px', fontWeight: '500', textAlign: 'left'
-      });
-      b.onmouseover = () => (b.style.background = bgHov);
-      b.onmouseout  = () => (b.style.background = bg);
-      b.onclick = () => { overlay.remove(); runBulkSet(columnHeader, v); };
-      overlay.appendChild(b);
-    });
+  var titleEl = document.createElement('div');
+  titleEl.textContent = title;
+  titleEl.style.cssText = 'font-weight:600;margin-bottom:10px;color:#393a3d;';
+  overlay.appendChild(titleEl);
 
-    const cancel = document.createElement('button');
-    cancel.textContent = 'Cancel';
-    Object.assign(cancel.style, {
-      display: 'block', width: '100%', marginTop: '8px', padding: '6px 12px',
-      background: '#f4f5f8', border: '1px solid #d4d7dc', borderRadius: '4px',
-      cursor: 'pointer', fontSize: '13px', color: '#393a3d'
-    });
-    cancel.onclick = () => overlay.remove();
-    overlay.appendChild(cancel);
+  values.forEach(function(v) {
+    var b = document.createElement('button');
+    b.textContent = v;
+    b.style.cssText = 'display:block;width:100%;margin:4px 0;padding:8px 12px;' +
+      'background:' + bg + ';color:#fff;border:none;border-radius:4px;' +
+      'cursor:pointer;font-size:13px;font-weight:500;text-align:left;';
+    b.onmouseover = function() { b.style.background = bgHover; };
+    b.onmouseout  = function() { b.style.background = bg; };
+    b.onclick = function() { overlay.remove(); runBulkSet(mode, v); };
+    overlay.appendChild(b);
+  });
 
-    document.body.appendChild(overlay);
+  var cancel = document.createElement('button');
+  cancel.textContent = 'Cancel';
+  cancel.style.cssText = 'display:block;width:100%;margin-top:8px;padding:6px 12px;' +
+    'background:#f4f5f8;border:1px solid #d4d7dc;border-radius:4px;cursor:pointer;' +
+    'font-size:13px;color:#393a3d;';
+  cancel.onclick = function() { overlay.remove(); };
+  overlay.appendChild(cancel);
+
+  document.body.appendChild(overlay);
+}
+
+// ── Main dispatch ─────────────────────────────────────────────────────────
+
+function runBulkSet(mode, value) {
+  if (mode === 'account') {
+    runDirect(value);
+  } else {
+    runViaCell(value);
   }
+}
 
-  // ── Bulk set ──────────────────────────────────────────────────────────────
+// Account inputs are always in the DOM — set directly, no clicking needed.
+async function runDirect(value) {
+  var status = makeStatus('Finding account fields...');
+  try {
+    var inputs = Array.from(document.querySelectorAll(
+      'input[data-testid*="payment_account"], input[aria-label="Choose an account"]'
+    ));
+    var total = inputs.length;
+    console.log('[QBO] account inputs found:', total);
 
-  // columnHeader: exact text of the column header (case-insensitive), e.g. 'payment method' or 'account'
-  async function runBulkSet(columnHeader, value) {
-    // Account inputs are always in the DOM — set them directly without clicking.
-    // Payment method inputs are lazy-rendered — must click each cell first.
-    if (columnHeader === 'account-direct') {
-      await runBulkSetDirect(value);
-    } else {
-      await runBulkSetViaCell(columnHeader, value);
-    }
-  }
-
-  // Account fields: inputs already exist in the DOM, no cell-click needed.
-  async function runBulkSetDirect(value) {
-    const status = makeStatus('Finding account fields...');
-    try {
-      const inputs = Array.from(document.querySelectorAll(
-        'input[data-testid*="payment_account"], input[aria-label="Choose an account"]'
-      ));
-      const total = inputs.length;
-
-      if (total === 0) {
-        status.style.background = '#d52b1e';
-        status.textContent = 'No account fields found. Make sure rows are loaded.';
-        setTimeout(() => status.remove(), 5000);
-        return;
-      }
-
-      status.textContent = 'Found ' + total + ' account(s). Setting to "' + value + '"...';
-      let updated = 0;
-
-      for (let i = 0; i < inputs.length; i++) {
-        status.textContent = 'Setting account ' + (i + 1) + ' of ' + total + '...';
-        try {
-          await setComboValue(inputs[i], value);
-          updated++;
-          await sleep(300);
-        } catch (e) {
-          console.warn('[QBO bulk] Account row', i, 'failed:', e.message);
-        }
-      }
-
-      status.textContent = 'Updated ' + updated + ' of ' + total + ' accounts.';
-      if (updated === 0) status.style.background = '#d52b1e';
-      setTimeout(() => status.remove(), 3500);
-    } catch (e) {
-      console.error('[QBO bulk] Error', e);
-      status.textContent = 'Error: ' + e.message;
+    if (total === 0) {
       status.style.background = '#d52b1e';
-      setTimeout(() => status.remove(), 5000);
-    }
-  }
-
-  // Payment method fields: inputs are lazy-rendered, must click each cell to reveal.
-  async function runBulkSetViaCell(columnHeader, value) {
-    const status = makeStatus('Finding ' + columnHeader + ' cells...');
-    try {
-      const cells = findColumnCells(columnHeader);
-      const total = cells.length;
-
-      if (total === 0) {
-        status.style.background = '#d52b1e';
-        status.textContent = 'No "' + columnHeader + '" column found. Make sure rows are loaded.';
-        setTimeout(() => status.remove(), 5000);
-        return;
-      }
-
-      status.textContent = 'Found ' + total + ' row(s). Setting to "' + value + '"...';
-      let updated = 0;
-      const usedInputs = new Set();
-
-      for (let i = 0; i < total; i++) {
-        status.textContent = 'Row ' + (i + 1) + ' of ' + total + '...';
-        try {
-          const liveCells = findColumnCells(columnHeader);
-          console.log('[QBO bulk] Row', i, '— live cell count:', liveCells.length);
-          const cell = liveCells[i];
-          if (!cell) {
-            console.warn('[QBO bulk] Row', i, '— cell missing from DOM');
-            continue;
-          }
-
-          cell.scrollIntoView({ block: 'nearest', behavior: 'instant' });
-          await sleep(100);
-          const cellRect = cell.getBoundingClientRect();
-          console.log('[QBO bulk] Row', i, '— cellRect:', JSON.stringify({
-            top: Math.round(cellRect.top), left: Math.round(cellRect.left),
-            width: Math.round(cellRect.width), height: Math.round(cellRect.height)
-          }));
-
-          await activateCell(cell);
-          await sleep(400);
-
-          const allInputs = Array.from(document.querySelectorAll(
-            'input[role="combobox"], input[aria-autocomplete], input[aria-haspopup="listbox"]'
-          ));
-          console.log('[QBO bulk] Row', i, '— comboboxes after click:',
-            allInputs.map(inp => {
-              const r = inp.getBoundingClientRect();
-              return { top: Math.round(r.top), left: Math.round(r.left), value: inp.value, excluded: usedInputs.has(inp) };
-            })
-          );
-
-          const input = await waitForInputNearCell(cellRect, 1500, usedInputs);
-          if (!input) {
-            console.warn('[QBO bulk] Row', i, '— no input found near cellRect');
-            continue;
-          }
-          console.log('[QBO bulk] Row', i, '— using input at top:', Math.round(input.getBoundingClientRect().top));
-
-          usedInputs.add(input);
-          await setComboValue(input, value);
-          updated++;
-          input.blur();
-          await sleep(300);
-        } catch (e) {
-          console.warn('[QBO bulk] Failed on row', i, e);
-        }
-      }
-
-      status.textContent = 'Updated ' + updated + ' of ' + total + ' rows.';
-      if (updated === 0) status.style.background = '#d52b1e';
-      setTimeout(() => status.remove(), 3500);
-    } catch (e) {
-      console.error('[QBO bulk] Error', e);
-      status.textContent = 'Error: ' + e.message;
-      status.style.background = '#d52b1e';
-      setTimeout(() => status.remove(), 5000);
-    }
-  }
-
-  // Find tbody cells in the column whose header matches the given text.
-  function findColumnCells(columnHeader) {
-    const needle = columnHeader.trim().toUpperCase();
-    const pmHeader = Array.from(document.querySelectorAll('*')).find(
-      el => el.children.length === 0 && el.textContent.trim().toUpperCase() === needle
-    );
-    if (!pmHeader) return [];
-
-    const headerCell = pmHeader.closest('th, td');
-    if (!headerCell) return [];
-
-    const headerRect = headerCell.getBoundingClientRect();
-    if (headerRect.width === 0) return [];
-    const headerCx = (headerRect.left + headerRect.right) / 2;
-
-    const table = headerCell.closest('table');
-    if (!table) return [];
-    const tbody = table.querySelector('tbody');
-    if (!tbody) return [];
-
-    return Array.from(tbody.querySelectorAll('td')).filter(td => {
-      const r = td.getBoundingClientRect();
-      if (r.width === 0) return false;
-      const tdCx = (r.left + r.right) / 2;
-      return Math.abs(tdCx - headerCx) < 30;
-    });
-  }
-
-  // ── Cell activation ───────────────────────────────────────────────────────
-
-  async function activateCell(cell) {
-    const rect = cell.getBoundingClientRect();
-    const cx = Math.round((rect.left + rect.right) / 2);
-    const cy = Math.round((rect.top + rect.bottom) / 2);
-    const target = document.elementFromPoint(cx, cy) || cell;
-
-    const pOpts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1, isPrimary: true, pressure: 0.5, view: window };
-    const mOpts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, button: 0, buttons: 1, view: window };
-    target.dispatchEvent(new PointerEvent('pointerover',  { ...pOpts, pressure: 0 }));
-    target.dispatchEvent(new MouseEvent('mouseover',      mOpts));
-    target.dispatchEvent(new PointerEvent('pointermove',  { ...pOpts, pressure: 0 }));
-    target.dispatchEvent(new MouseEvent('mousemove',      mOpts));
-    target.dispatchEvent(new PointerEvent('pointerdown',  pOpts));
-    target.dispatchEvent(new MouseEvent('mousedown',      mOpts));
-    await sleep(30);
-    target.dispatchEvent(new PointerEvent('pointerup',    { ...pOpts, pressure: 0 }));
-    target.dispatchEvent(new MouseEvent('mouseup',        { ...mOpts, buttons: 0 }));
-    target.dispatchEvent(new MouseEvent('click',          { ...mOpts, buttons: 0 }));
-
-    await sleep(80);
-
-    fireReactClick(target, cx, cy);
-    let el = target.parentElement;
-    for (let i = 0; i < 5 && el && el !== document.body; i++) {
-      fireReactClick(el, cx, cy);
-      el = el.parentElement;
-    }
-  }
-
-  function fireReactClick(element, cx, cy) {
-    try {
-      const fiberKey = Object.keys(element).find(k =>
-        k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance')
-      );
-      if (!fiberKey) return;
-      let fiber = element[fiberKey];
-      while (fiber) {
-        const props = fiber.memoizedProps || {};
-        const handler = props.onClick || props.onMouseDown || props.onPointerDown;
-        if (handler) {
-          handler({
-            type: props.onClick ? 'click' : 'mousedown',
-            target: element, currentTarget: element,
-            clientX: cx, clientY: cy,
-            bubbles: true, cancelable: true,
-            preventDefault: () => {}, stopPropagation: () => {},
-            nativeEvent: { target: element, clientX: cx, clientY: cy }
-          });
-          return;
-        }
-        fiber = fiber.return;
-      }
-    } catch (_) { /* ignore */ }
-  }
-
-  // ── Input search ──────────────────────────────────────────────────────────
-
-  async function waitForInputNearCell(rect, timeout, exclude = new Set()) {
-    const deadline = Date.now() + timeout;
-    const cellCy = (rect.top + rect.bottom) / 2;
-    const cellCx = (rect.left + rect.right) / 2;
-
-    while (Date.now() < deadline) {
-      const candidates = Array.from(document.querySelectorAll(
-        'input[role="combobox"], input[aria-autocomplete], input[aria-haspopup="listbox"]'
-      ));
-      const match = candidates.find(input => {
-        if (exclude.has(input)) return false;
-        const r = input.getBoundingClientRect();
-        if (r.width === 0 && r.height === 0) return false;
-        const inputCy = (r.top + r.bottom) / 2;
-        const inputCx = (r.left + r.right) / 2;
-        return Math.abs(inputCy - cellCy) < 80 && Math.abs(inputCx - cellCx) < 150;
-      });
-      if (match) return match;
-      await sleep(50);
-    }
-    return null;
-  }
-
-  // ── Status overlay ────────────────────────────────────────────────────────
-
-  function makeStatus(text) {
-    const s = document.createElement('div');
-    Object.assign(s.style, {
-      position: 'fixed', top: '50%', left: '50%',
-      transform: 'translate(-50%, -50%)',
-      zIndex: '2147483647',
-      background: '#393a3d', color: '#fff', padding: '18px 24px',
-      borderRadius: '8px', fontFamily: 'system-ui', fontSize: '15px',
-      fontWeight: '600', boxShadow: '0 8px 32px rgba(0,0,0,.5)',
-      maxWidth: '500px', textAlign: 'center'
-    });
-    s.textContent = text;
-    document.body.appendChild(s);
-    return s;
-  }
-
-  // ── Set a React-controlled combobox ───────────────────────────────────────
-
-  async function setComboValue(input, value) {
-    input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-    input.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true, cancelable: true }));
-    input.dispatchEvent(new MouseEvent('click',     { bubbles: true, cancelable: true }));
-    input.focus();
-    await sleep(150);
-
-    const nativeSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype, 'value'
-    ).set;
-    nativeSetter.call(input, value);
-    input.dispatchEvent(new Event('input',  { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-
-    const opt = await waitForOption(input, value, 800);
-    if (opt) {
-      opt.click();
-      await sleep(80);
+      status.textContent = 'No account fields found. Make sure rows are loaded.';
+      setTimeout(function() { status.remove(); }, 5000);
       return;
     }
 
-    nativeSetter.call(input, '');
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true
-    }));
-    input.blur();
-    await sleep(80);
-    throw new Error('Option "' + value + '" not found in dropdown');
-  }
-
-  async function waitForOption(input, value, timeout) {
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-      const opt = findOptionForInput(input, value) || findOptionGlobal(value);
-      if (opt) return opt;
-      await sleep(80);
+    var updated = 0;
+    for (var i = 0; i < inputs.length; i++) {
+      status.textContent = 'Account ' + (i+1) + ' of ' + total + '...';
+      try {
+        await setComboValue(inputs[i], value);
+        updated++;
+        await sleep(300);
+      } catch(e) {
+        console.warn('[QBO] account row', i, 'failed:', e.message);
+      }
     }
-    return null;
-  }
 
-  function findOptionForInput(input, value) {
-    const listboxId = input.getAttribute('aria-controls');
-    if (!listboxId) return null;
-    const listbox = document.getElementById(listboxId);
-    if (!listbox) return null;
-    return pickOption(Array.from(listbox.querySelectorAll('[role="option"], li')), value);
+    status.textContent = 'Updated ' + updated + ' of ' + total + ' accounts.';
+    if (updated === 0) status.style.background = '#d52b1e';
+    setTimeout(function() { status.remove(); }, 3500);
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.background = '#d52b1e';
+    setTimeout(function() { status.remove(); }, 5000);
   }
+}
 
-  function findOptionGlobal(value) {
-    return pickOption(
-      Array.from(document.querySelectorAll('[role="option"], li[role="option"]')),
-      value
-    );
+// Payment method inputs are lazy — must click each cell to reveal them.
+async function runViaCell(value) {
+  var status = makeStatus('Finding payment method cells...');
+  try {
+    var cells = findColumnCells('PAYMENT METHOD');
+    var total = cells.length;
+    console.log('[QBO] payment method cells found:', total);
+
+    if (total === 0) {
+      status.style.background = '#d52b1e';
+      status.textContent = 'No payment method column found. Make sure rows are loaded.';
+      setTimeout(function() { status.remove(); }, 5000);
+      return;
+    }
+
+    var updated = 0;
+    var usedInputs = new Set();
+
+    for (var i = 0; i < total; i++) {
+      status.textContent = 'Row ' + (i+1) + ' of ' + total + '...';
+      try {
+        var liveCells = findColumnCells('PAYMENT METHOD');
+        var cell = liveCells[i];
+        if (!cell) { console.warn('[QBO] row', i, 'cell missing'); continue; }
+
+        cell.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+        await sleep(100);
+        var cellRect = cell.getBoundingClientRect();
+        console.log('[QBO] row', i, 'cellRect top:', Math.round(cellRect.top), 'left:', Math.round(cellRect.left));
+
+        await activateCell(cell);
+        await sleep(400);
+
+        var allInputs = Array.from(document.querySelectorAll(
+          'input[role="combobox"], input[aria-autocomplete], input[aria-haspopup="listbox"]'
+        ));
+        console.log('[QBO] row', i, 'inputs after click:',
+          allInputs.map(function(inp) {
+            var r = inp.getBoundingClientRect();
+            return { top: Math.round(r.top), left: Math.round(r.left), val: inp.value, excl: usedInputs.has(inp) };
+          })
+        );
+
+        var input = await waitForInputNearCell(cellRect, 1500, usedInputs);
+        if (!input) { console.warn('[QBO] row', i, 'no input found'); continue; }
+        console.log('[QBO] row', i, 'found input at top:', Math.round(input.getBoundingClientRect().top));
+
+        usedInputs.add(input);
+        await setComboValue(input, value);
+        updated++;
+        input.blur();
+        await sleep(300);
+      } catch(e) {
+        console.warn('[QBO] row', i, 'error:', e.message);
+      }
+    }
+
+    status.textContent = 'Updated ' + updated + ' of ' + total + ' rows.';
+    if (updated === 0) status.style.background = '#d52b1e';
+    setTimeout(function() { status.remove(); }, 3500);
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.background = '#d52b1e';
+    setTimeout(function() { status.remove(); }, 5000);
   }
+}
 
-  function pickOption(options, value) {
-    const v = value.trim().toLowerCase();
-    const safe = options.filter(o => !/add new|new payment/i.test(o.textContent));
-    return (
-      safe.find(o => o.textContent.trim().toLowerCase() === v) ||
-      safe.find(o => o.textContent.trim().toLowerCase().includes(v))
-    );
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function findColumnCells(headerText) {
+  var headerEl = Array.from(document.querySelectorAll('*')).find(function(el) {
+    return el.children.length === 0 && el.textContent.trim().toUpperCase() === headerText;
+  });
+  if (!headerEl) { console.warn('[QBO] header not found:', headerText); return []; }
+
+  var headerCell = headerEl.closest('th, td');
+  if (!headerCell) return [];
+  var headerRect = headerCell.getBoundingClientRect();
+  if (headerRect.width === 0) return [];
+  var headerCx = (headerRect.left + headerRect.right) / 2;
+
+  var table = headerCell.closest('table');
+  if (!table) return [];
+  var tbody = table.querySelector('tbody');
+  if (!tbody) return [];
+
+  return Array.from(tbody.querySelectorAll('td')).filter(function(td) {
+    var r = td.getBoundingClientRect();
+    if (r.width === 0) return false;
+    return Math.abs((r.left + r.right) / 2 - headerCx) < 30;
+  });
+}
+
+async function activateCell(cell) {
+  var rect = cell.getBoundingClientRect();
+  var cx = Math.round((rect.left + rect.right) / 2);
+  var cy = Math.round((rect.top + rect.bottom) / 2);
+  var target = document.elementFromPoint(cx, cy) || cell;
+
+  var pOpts = { bubbles:true, cancelable:true, clientX:cx, clientY:cy, pointerId:1, isPrimary:true, pressure:0.5, view:window };
+  var mOpts = { bubbles:true, cancelable:true, clientX:cx, clientY:cy, button:0, buttons:1, view:window };
+  target.dispatchEvent(new PointerEvent('pointerover',  Object.assign({}, pOpts, { pressure:0 })));
+  target.dispatchEvent(new MouseEvent('mouseover',      mOpts));
+  target.dispatchEvent(new PointerEvent('pointermove',  Object.assign({}, pOpts, { pressure:0 })));
+  target.dispatchEvent(new MouseEvent('mousemove',      mOpts));
+  target.dispatchEvent(new PointerEvent('pointerdown',  pOpts));
+  target.dispatchEvent(new MouseEvent('mousedown',      mOpts));
+  await sleep(30);
+  target.dispatchEvent(new PointerEvent('pointerup',    Object.assign({}, pOpts, { pressure:0 })));
+  target.dispatchEvent(new MouseEvent('mouseup',        Object.assign({}, mOpts, { buttons:0 })));
+  target.dispatchEvent(new MouseEvent('click',          Object.assign({}, mOpts, { buttons:0 })));
+  await sleep(80);
+
+  fireReactClick(target, cx, cy);
+  var el = target.parentElement;
+  for (var i = 0; i < 5 && el && el !== document.body; i++) {
+    fireReactClick(el, cx, cy);
+    el = el.parentElement;
   }
+}
 
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function fireReactClick(element, cx, cy) {
+  try {
+    var keys = Object.keys(element);
+    var fiberKey = null;
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i].indexOf('__reactFiber') === 0 || keys[i].indexOf('__reactInternalInstance') === 0) {
+        fiberKey = keys[i]; break;
+      }
+    }
+    if (!fiberKey) return;
+    var fiber = element[fiberKey];
+    while (fiber) {
+      var props = fiber.memoizedProps || {};
+      var handler = props.onClick || props.onMouseDown || props.onPointerDown;
+      if (handler) {
+        handler({ type:'click', target:element, currentTarget:element,
+          clientX:cx, clientY:cy, bubbles:true, cancelable:true,
+          preventDefault:function(){}, stopPropagation:function(){},
+          nativeEvent:{ target:element, clientX:cx, clientY:cy } });
+        return;
+      }
+      fiber = fiber.return;
+    }
+  } catch(e) {}
+}
+
+async function waitForInputNearCell(rect, timeout, exclude) {
+  var deadline = Date.now() + timeout;
+  var cellCy = (rect.top + rect.bottom) / 2;
+  var cellCx = (rect.left + rect.right) / 2;
+  while (Date.now() < deadline) {
+    var candidates = Array.from(document.querySelectorAll(
+      'input[role="combobox"], input[aria-autocomplete], input[aria-haspopup="listbox"]'
+    ));
+    for (var i = 0; i < candidates.length; i++) {
+      var inp = candidates[i];
+      if (exclude.has(inp)) continue;
+      var r = inp.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) continue;
+      if (Math.abs((r.top+r.bottom)/2 - cellCy) < 80 && Math.abs((r.left+r.right)/2 - cellCx) < 150) return inp;
+    }
+    await sleep(50);
+  }
+  return null;
+}
+
+async function setComboValue(input, value) {
+  input.dispatchEvent(new MouseEvent('mousedown', { bubbles:true, cancelable:true }));
+  input.dispatchEvent(new MouseEvent('mouseup',   { bubbles:true, cancelable:true }));
+  input.dispatchEvent(new MouseEvent('click',     { bubbles:true, cancelable:true }));
+  input.focus();
+  await sleep(150);
+
+  var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+  nativeSetter.call(input, value);
+  input.dispatchEvent(new Event('input',  { bubbles:true }));
+  input.dispatchEvent(new Event('change', { bubbles:true }));
+
+  var opt = await waitForOption(input, value, 800);
+  if (opt) { opt.click(); await sleep(80); return; }
+
+  nativeSetter.call(input, '');
+  input.dispatchEvent(new Event('input', { bubbles:true }));
+  input.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape', code:'Escape', keyCode:27, which:27, bubbles:true }));
+  input.blur();
+  await sleep(80);
+  throw new Error('Option not found: ' + value);
+}
+
+async function waitForOption(input, value, timeout) {
+  var deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    var opt = findOptionForInput(input, value) || findOptionGlobal(value);
+    if (opt) return opt;
+    await sleep(80);
+  }
+  return null;
+}
+
+function findOptionForInput(input, value) {
+  var listboxId = input.getAttribute('aria-controls');
+  if (!listboxId) return null;
+  var listbox = document.getElementById(listboxId);
+  if (!listbox) return null;
+  return pickOption(Array.from(listbox.querySelectorAll('[role="option"], li')), value);
+}
+
+function findOptionGlobal(value) {
+  return pickOption(Array.from(document.querySelectorAll('[role="option"], li[role="option"]')), value);
+}
+
+function pickOption(options, value) {
+  var v = value.trim().toLowerCase();
+  var safe = options.filter(function(o) { return !/add new|new payment/i.test(o.textContent); });
+  return safe.find(function(o) { return o.textContent.trim().toLowerCase() === v; }) ||
+         safe.find(function(o) { return o.textContent.trim().toLowerCase().indexOf(v) !== -1; });
+}
+
+function makeStatus(text) {
+  var s = document.createElement('div');
+  s.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);' +
+    'z-index:2147483647;background:#393a3d;color:#fff;padding:18px 24px;' +
+    'border-radius:8px;font-family:system-ui;font-size:15px;font-weight:600;' +
+    'box-shadow:0 8px 32px rgba(0,0,0,.5);max-width:500px;text-align:center;';
+  s.textContent = text;
+  document.body.appendChild(s);
+  return s;
+}
+
+function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+
 })();
