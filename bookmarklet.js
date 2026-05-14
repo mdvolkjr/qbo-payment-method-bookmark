@@ -57,25 +57,28 @@
       console.log('[QBO bulk] Found', total, 'Payment Method inputs');
 
       let updated = 0;
-      const MAX = 20; // safety cap against infinite loops
+      const MAX = 20;
+      const failed = new Set(); // keyed by testid/id so re-rendered elements are still skipped
 
       // Re-query after each row — React re-renders the table after each
       // dropdown selection, which detaches previously cached input references.
       while (updated < MAX) {
         const inputs = findPaymentMethodInputs();
-        // Skip inputs already set to the target value
-        const input = inputs.find(
-          i => i.value.trim().toLowerCase() !== value.trim().toLowerCase()
-        );
+        const v = value.trim().toLowerCase();
+        const input = inputs.find(i => {
+          const key = i.dataset.testid || i.id || i.name;
+          return i.value.trim().toLowerCase() !== v && !failed.has(key);
+        });
         if (!input) break;
 
+        const key = input.dataset.testid || input.id || input.name;
         try {
           await setComboValue(input, value);
           updated++;
-          await sleep(150); // let React settle before re-querying
+          await sleep(250); // let React settle before re-querying
         } catch (e) {
           console.warn('[QBO bulk] Failed on', input, e);
-          break;
+          failed.add(key); // skip this row next iteration, keep going for others
         }
       }
 
