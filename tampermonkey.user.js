@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Payment Method
 // @namespace    qbo-bulk-payment-method
-// @version      1.5
+// @version      1.6
 // @description  Adds a button on the QBO Bank Deposit page to set all Payment Method fields at once
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -110,18 +110,11 @@
 
       for (const cell of cells) {
         try {
+          await activateCell(cell);
+          await sleep(400);
+
           const cellRect = cell.getBoundingClientRect();
-
-          // Click the deepest child element — QBO may ignore clicks on the outer TD
-          const clickTarget = deepestChild(cell) || cell;
-          clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-          clickTarget.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true, cancelable: true }));
-          clickTarget.click();
-          await sleep(300);
-
-          // Input may render inside the TD or as a React portal elsewhere on the page.
-          // Search by screen position overlap rather than DOM ancestry.
-          const input = await waitForInputNearRect(cellRect, 1500);
+          const input = await waitForInputNearCell(cellRect, 1500);
           if (!input) {
             console.warn('[QBO bulk] No input appeared near cell', cell);
             continue;
@@ -146,8 +139,74 @@
     }
   }
 
+  // Try every available technique to make QBO reveal the combobox input.
+  async function activateCell(cell) {
+    // Scroll into view so elementFromPoint works correctly
+    cell.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    await sleep(80);
+
+    const rect = cell.getBoundingClientRect();
+    const cx = Math.round((rect.left + rect.right) / 2);
+    const cy = Math.round((rect.top + rect.bottom) / 2);
+
+    // Use the actual on-screen element at those coordinates
+    const target = document.elementFromPoint(cx, cy) || cell;
+
+    // 1. Full pointer + mouse event sequence with real coordinates
+    const pOpts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1, isPrimary: true, pressure: 0.5, view: window };
+    const mOpts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, button: 0, buttons: 1, view: window };
+    target.dispatchEvent(new PointerEvent('pointerover',  { ...pOpts, pressure: 0 }));
+    target.dispatchEvent(new MouseEvent('mouseover',      mOpts));
+    target.dispatchEvent(new PointerEvent('pointermove',  { ...pOpts, pressure: 0 }));
+    target.dispatchEvent(new MouseEvent('mousemove',      mOpts));
+    target.dispatchEvent(new PointerEvent('pointerdown',  pOpts));
+    target.dispatchEvent(new MouseEvent('mousedown',      mOpts));
+    await sleep(30);
+    target.dispatchEvent(new PointerEvent('pointerup',    { ...pOpts, pressure: 0 }));
+    target.dispatchEvent(new MouseEvent('mouseup',        { ...mOpts, buttons: 0 }));
+    target.dispatchEvent(new MouseEvent('click',          { ...mOpts, buttons: 0 }));
+
+    await sleep(80);
+
+    // 2. Also try calling React's onClick handler directly off the fiber tree —
+    //    bypasses any isTrusted checks that might filter synthetic events
+    fireReactClick(target, cx, cy);
+    // Walk up a few ancestors too, in case the handler is on a wrapper
+    let el = target.parentElement;
+    for (let i = 0; i < 5 && el && el !== document.body; i++) {
+      fireReactClick(el, cx, cy);
+      el = el.parentElement;
+    }
+  }
+
+  // Call a React onClick or onMouseDown handler found in the fiber tree.
+  function fireReactClick(element, cx, cy) {
+    try {
+      const fiberKey = Object.keys(element).find(k =>
+        k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance')
+      );
+      if (!fiberKey) return;
+      let fiber = element[fiberKey];
+      while (fiber) {
+        const props = fiber.memoizedProps || {};
+        const handler = props.onClick || props.onMouseDown || props.onPointerDown;
+        if (handler) {
+          handler({
+            type: props.onClick ? 'click' : 'mousedown',
+            target: element, currentTarget: element,
+            clientX: cx, clientY: cy,
+            bubbles: true, cancelable: true,
+            preventDefault: () => {}, stopPropagation: () => {},
+            nativeEvent: { target: element, clientX: cx, clientY: cy }
+          });
+          return;
+        }
+        fiber = fiber.return;
+      }
+    } catch (_) { /* ignore */ }
+  }
+
   // Find the PAYMENT METHOD column cells using horizontal position matching.
-  // THEAD and TBODY can have different child counts, so colIndex is unreliable.
   function findPaymentMethodCells() {
     const pmHeader = Array.from(document.querySelectorAll('*')).find(
       el => el.children.length === 0 && el.textContent.trim().toUpperCase() === 'PAYMENT METHOD'
@@ -174,27 +233,23 @@
     });
   }
 
-  // Walk to the deepest first-child so we click the actual rendered content,
-  // not the outer wrapper that QBO may not listen to.
-  function deepestChild(el) {
-    let cur = el;
-    while (cur.children.length > 0) cur = cur.children[0];
-    return cur === el ? null : cur;
-  }
-
-  // Poll for any combobox input whose bounding rect overlaps the given rect.
-  // Handles React portals where the input renders outside the TD in the DOM.
-  async function waitForInputNearRect(rect, timeout) {
+  // Poll for a combobox input that overlaps or is near the given cell rect.
+  async function waitForInputNearCell(rect, timeout) {
     const deadline = Date.now() + timeout;
+    const cellCy = (rect.top + rect.bottom) / 2;
+    const cellCx = (rect.left + rect.right) / 2;
+
     while (Date.now() < deadline) {
       const candidates = Array.from(document.querySelectorAll(
         'input[role="combobox"], input[aria-autocomplete], input[aria-haspopup="listbox"]'
       ));
       const match = candidates.find(input => {
         const r = input.getBoundingClientRect();
-        return r.width > 0 &&
-          r.left < rect.right && r.right > rect.left &&
-          r.top  < rect.bottom && r.bottom > rect.top;
+        // Accept any visible input whose center is within 80px of the cell center
+        if (r.width === 0 && r.height === 0) return false;
+        const inputCy = (r.top + r.bottom) / 2;
+        const inputCx = (r.left + r.right) / 2;
+        return Math.abs(inputCy - cellCy) < 80 && Math.abs(inputCx - cellCx) < 150;
       });
       if (match) return match;
       await sleep(50);
