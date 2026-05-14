@@ -160,28 +160,41 @@
   // ── Find inputs ───────────────────────────────────────────────────────────
 
   function findPaymentMethodInputs() {
-    const precise = Array.from(
-      document.querySelectorAll('input[data-testid*="payment_method"]')
-    );
+    // 1. Precise data-testid match (line_payment_method_N__textField)
+    const precise = Array.from(document.querySelectorAll('input[data-testid*="payment_method"]'));
     if (precise.length) return precise;
 
-    const headers = Array.from(document.querySelectorAll('div, span, th'))
-      .filter(el => el.textContent.trim().toUpperCase() === 'PAYMENT METHOD');
-    if (headers.length) {
-      const table = headers[0].closest(
-        'table, [role="table"], section, div[class*="Deposit"], div[class*="deposit"], form'
-      );
-      if (table) {
-        const found = Array.from(table.querySelectorAll(
-          'input[role="combobox"], input[aria-haspopup="listbox"], input[aria-autocomplete="list"]'
-        ));
-        if (found.length) return found;
-      }
-    }
+    // 2. aria-label="Select an element." is on payment method comboboxes specifically
+    const byLabel = Array.from(document.querySelectorAll('input[aria-label="Select an element."]'));
+    if (byLabel.length) return byLabel;
 
-    return Array.from(document.querySelectorAll(
-      'input[role="combobox"], input[aria-autocomplete]'
-    ));
+    // 3. Column-position: find the PAYMENT METHOD header, collect inputs from that column
+    const colInputs = findByColumnPosition();
+    if (colInputs.length) return colInputs;
+
+    // 4. No safe fallback — return empty rather than grabbing unrelated fields
+    return [];
+  }
+
+  function findByColumnPosition() {
+    const allCells = Array.from(document.querySelectorAll('th, td, div[role="columnheader"], div[role="cell"]'));
+    const pmHeader = allCells.find(el => el.textContent.trim().toUpperCase() === 'PAYMENT METHOD');
+    if (!pmHeader) return [];
+    const headerRow = pmHeader.closest('tr, [role="row"]');
+    if (!headerRow) return [];
+    const colIndex = Array.from(headerRow.children).indexOf(pmHeader);
+    if (colIndex === -1) return [];
+    const container = headerRow.closest('table, [role="table"]');
+    if (!container) return [];
+    const dataRows = Array.from(container.querySelectorAll('tr, [role="row"]')).filter(r => r !== headerRow);
+    const inputs = [];
+    for (const row of dataRows) {
+      const cell = row.children[colIndex];
+      if (!cell) continue;
+      const input = cell.querySelector('input[role="combobox"], input[aria-autocomplete]');
+      if (input) inputs.push(input);
+    }
+    return inputs;
   }
 
   // ── Set a React-controlled combobox ───────────────────────────────────────
