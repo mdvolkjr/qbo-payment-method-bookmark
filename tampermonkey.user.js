@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Payment Method
 // @namespace    qbo-bulk-payment-method
-// @version      1.2
+// @version      1.3
 // @description  Adds a button on the QBO Bank Deposit page to set all Payment Method fields at once
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -16,27 +16,16 @@
   const BUTTON_ID = 'qbo-bulk-pm-btn';
   const PICKER_ID = 'qbo-bulk-pm-picker';
 
-  // Watch for navigation to the Bank Deposit page (QBO is a SPA).
-  // We inject a trigger button whenever we land on a deposit page.
-  let lastUrl = '';
-  const observer = new MutationObserver(() => {
-    if (location.href !== lastUrl) {
-      lastUrl = location.href;
-      onNavigate();
-    }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-  onNavigate(); // run on initial load too
-
-  function onNavigate() {
-    // Only show on the Bank Deposit page (/app/deposit)
-    if (!location.pathname.startsWith('/app/deposit')) {
+  // Poll every second — simpler and more reliable than MutationObserver
+  // for SPA navigation. Injects the button on /app/deposit, removes it elsewhere.
+  setInterval(() => {
+    if (location.pathname.startsWith('/app/deposit')) {
+      injectButton();
+    } else {
       const btn = document.getElementById(BUTTON_ID);
       if (btn) btn.remove();
-      return;
     }
-    setTimeout(injectButton, 1200);
-  }
+  }, 1000);
 
   function injectButton() {
     if (document.getElementById(BUTTON_ID)) return; // already there
