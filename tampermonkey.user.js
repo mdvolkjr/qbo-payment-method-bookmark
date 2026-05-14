@@ -147,27 +147,28 @@
 
   // Find the cells in the PAYMENT METHOD column (inputs don't exist until clicked)
   function findPaymentMethodCells() {
-    // Find the leaf element whose text is exactly "PAYMENT METHOD"
     const pmHeader = Array.from(document.querySelectorAll('*')).find(
       el => el.children.length === 0 && el.textContent.trim().toUpperCase() === 'PAYMENT METHOD'
     );
     if (!pmHeader) return [];
 
-    // Walk up to find its row
-    const headerRow = pmHeader.closest('tr, [role="row"]');
+    // Walk up to the TH, then its TR, then the TABLE
+    const headerCell = pmHeader.closest('th, td');
+    if (!headerCell) return [];
+    const headerRow = headerCell.closest('tr');
     if (!headerRow) return [];
-
-    // Find which column index contains the header
-    const headerChildren = Array.from(headerRow.children);
-    const colIndex = headerChildren.findIndex(c => c === pmHeader || c.contains(pmHeader));
+    const colIndex = Array.from(headerRow.children).indexOf(headerCell);
     if (colIndex === -1) return [];
 
-    // Find sibling data rows
-    const container = headerRow.parentElement;
-    if (!container) return [];
-    const dataRows = Array.from(container.children).filter(r => r !== headerRow);
+    // Data rows are in <tbody>, not the same <thead> as the header
+    const table = headerRow.closest('table');
+    if (!table) return [];
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return [];
 
-    return dataRows.map(row => row.children[colIndex]).filter(Boolean);
+    return Array.from(tbody.querySelectorAll('tr'))
+      .map(row => row.children[colIndex])
+      .filter(Boolean);
   }
 
   // Poll until an input appears inside a cell (after clicking it)
