@@ -114,32 +114,45 @@
       for (let i = 0; i < total; i++) {
         try {
           const liveCells = findPaymentMethodCells();
+          console.log('[QBO bulk] Row', i, '— live cell count:', liveCells.length);
           const cell = liveCells[i];
           if (!cell) {
-            console.warn('[QBO bulk] Cell', i, 'no longer in DOM');
+            console.warn('[QBO bulk] Row', i, '— cell missing from DOM');
             continue;
           }
 
-          // Scroll into view first, then capture rect after scroll settles.
-          // If we capture before scrolling, row 4 (below the fold) has a stale
-          // Y position — after scrollIntoView inside activateCell the input
-          // renders at a different coordinate and the search misses it.
           cell.scrollIntoView({ block: 'nearest', behavior: 'instant' });
           await sleep(100);
           const cellRect = cell.getBoundingClientRect();
+          console.log('[QBO bulk] Row', i, '— cellRect:', JSON.stringify({
+            top: Math.round(cellRect.top), left: Math.round(cellRect.left),
+            width: Math.round(cellRect.width), height: Math.round(cellRect.height)
+          }));
 
           await activateCell(cell);
           await sleep(400);
+
+          // Log all visible comboboxes at this moment
+          const allInputs = Array.from(document.querySelectorAll(
+            'input[role="combobox"], input[aria-autocomplete], input[aria-haspopup="listbox"]'
+          ));
+          console.log('[QBO bulk] Row', i, '— comboboxes on page after click:',
+            allInputs.map(inp => {
+              const r = inp.getBoundingClientRect();
+              return { top: Math.round(r.top), left: Math.round(r.left), value: inp.value, inExclude: usedInputs.has(inp) };
+            })
+          );
+
           const input = await waitForInputNearCell(cellRect, 1500, usedInputs);
           if (!input) {
-            console.warn('[QBO bulk] No input appeared near cell', i);
+            console.warn('[QBO bulk] Row', i, '— no input found near cellRect');
             continue;
           }
+          console.log('[QBO bulk] Row', i, '— using input at top:', Math.round(input.getBoundingClientRect().top));
 
           usedInputs.add(input);
           await setComboValue(input, value);
           updated++;
-          // Blur to collapse the dropdown so it doesn't interfere with the next row
           input.blur();
           await sleep(300);
         } catch (e) {
