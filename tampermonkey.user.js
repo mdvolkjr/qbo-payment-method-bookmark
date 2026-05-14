@@ -95,56 +95,90 @@
   // ── Bulk set ──────────────────────────────────────────────────────────────
 
   async function runBulkSet(value) {
-    const status = makeStatus('Setting payment methods to "' + value + '"...');
+    const status = makeStatus('Finding payment method cells...');
     try {
-      const inputs = findPaymentMethodInputs();
-      const total = inputs.length;
-      const debugInfo = inputs.map(i => i.dataset.testid || i.id || i.getAttribute('aria-label') || '?').join(', ');
-      status.textContent = 'Found ' + total + ': ' + (debugInfo || 'none');
-      await sleep(3000); // pause so you can read what was found
+      // Inputs are lazy-rendered — find the cells first, click to reveal each input
+      const cells = findPaymentMethodCells();
+      const total = cells.length;
+
       if (total === 0) {
         status.style.background = '#d52b1e';
-        status.textContent = 'No payment method fields found. Open a Bank Deposit first.';
-        setTimeout(() => status.remove(), 4000);
+        status.textContent = 'No payment method cells found. Make sure you are on the Bank Deposit page with rows loaded.';
+        setTimeout(() => status.remove(), 5000);
         return;
       }
 
+      status.textContent = 'Found ' + total + ' row(s). Setting to "' + value + '"...';
       let updated = 0;
-      const MAX = 20;
-      const failed = new Set();
 
-      while (updated < MAX) {
-        const inputs = findPaymentMethodInputs();
-        const v = value.trim().toLowerCase();
-        const input = inputs.find(i => {
-          const key = i.dataset.testid || i.id || i.name;
-          return i.value.trim().toLowerCase() !== v && !failed.has(key);
-        });
-        if (!input) break;
-
-        const key = input.dataset.testid || input.id || input.name;
+      for (const cell of cells) {
         try {
+          // Click the cell to make QBO render the input inside it
+          cell.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+          cell.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true, cancelable: true }));
+          cell.click();
+          await sleep(200);
+
+          // Wait for the input to appear inside this cell
+          const input = await waitForInputInCell(cell, 1500);
+          if (!input) {
+            console.warn('[QBO bulk] No input appeared in cell', cell);
+            continue;
+          }
+
           await setComboValue(input, value);
           updated++;
-          await sleep(250);
+          await sleep(200);
         } catch (e) {
-          console.warn('[QBO bulk] Failed on', input, e);
-          failed.add(key);
+          console.warn('[QBO bulk] Failed on cell', cell, e);
         }
       }
 
       status.textContent = 'Updated ' + updated + ' of ' + total + ' rows.';
-      if (updated === 0) {
-        status.style.background = '#d52b1e';
-        status.textContent += ' (No matches — see console.)';
-      }
+      if (updated === 0) status.style.background = '#d52b1e';
       setTimeout(() => status.remove(), 3500);
     } catch (e) {
       console.error('[QBO bulk] Error', e);
-      status.textContent = 'Error — see console';
+      status.textContent = 'Error: ' + e.message;
       status.style.background = '#d52b1e';
-      setTimeout(() => status.remove(), 4500);
+      setTimeout(() => status.remove(), 5000);
     }
+  }
+
+  // Find the cells in the PAYMENT METHOD column (inputs don't exist until clicked)
+  function findPaymentMethodCells() {
+    // Find the leaf element whose text is exactly "PAYMENT METHOD"
+    const pmHeader = Array.from(document.querySelectorAll('*')).find(
+      el => el.children.length === 0 && el.textContent.trim().toUpperCase() === 'PAYMENT METHOD'
+    );
+    if (!pmHeader) return [];
+
+    // Walk up to find its row
+    const headerRow = pmHeader.closest('tr, [role="row"]');
+    if (!headerRow) return [];
+
+    // Find which column index contains the header
+    const headerChildren = Array.from(headerRow.children);
+    const colIndex = headerChildren.findIndex(c => c === pmHeader || c.contains(pmHeader));
+    if (colIndex === -1) return [];
+
+    // Find sibling data rows
+    const container = headerRow.parentElement;
+    if (!container) return [];
+    const dataRows = Array.from(container.children).filter(r => r !== headerRow);
+
+    return dataRows.map(row => row.children[colIndex]).filter(Boolean);
+  }
+
+  // Poll until an input appears inside a cell (after clicking it)
+  async function waitForInputInCell(cell, timeout) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const input = cell.querySelector('input[role="combobox"], input[aria-autocomplete], input[type="text"]');
+      if (input) return input;
+      await sleep(50);
+    }
+    return null;
   }
 
   function makeStatus(text) {
@@ -161,46 +195,6 @@
     s.textContent = text;
     document.body.appendChild(s);
     return s;
-  }
-
-  // ── Find inputs ───────────────────────────────────────────────────────────
-
-  function findPaymentMethodInputs() {
-    // 1. Precise data-testid match (line_payment_method_N__textField)
-    const precise = Array.from(document.querySelectorAll('input[data-testid*="payment_method"]'));
-    if (precise.length) return precise;
-
-    // 2. aria-label="Select an element." is on payment method comboboxes specifically
-    const byLabel = Array.from(document.querySelectorAll('input[aria-label="Select an element."]'));
-    if (byLabel.length) return byLabel;
-
-    // 3. Column-position: find the PAYMENT METHOD header, collect inputs from that column
-    const colInputs = findByColumnPosition();
-    if (colInputs.length) return colInputs;
-
-    // 4. No safe fallback — return empty rather than grabbing unrelated fields
-    return [];
-  }
-
-  function findByColumnPosition() {
-    const allCells = Array.from(document.querySelectorAll('th, td, div[role="columnheader"], div[role="cell"]'));
-    const pmHeader = allCells.find(el => el.textContent.trim().toUpperCase() === 'PAYMENT METHOD');
-    if (!pmHeader) return [];
-    const headerRow = pmHeader.closest('tr, [role="row"]');
-    if (!headerRow) return [];
-    const colIndex = Array.from(headerRow.children).indexOf(pmHeader);
-    if (colIndex === -1) return [];
-    const container = headerRow.closest('table, [role="table"]');
-    if (!container) return [];
-    const dataRows = Array.from(container.querySelectorAll('tr, [role="row"]')).filter(r => r !== headerRow);
-    const inputs = [];
-    for (const row of dataRows) {
-      const cell = row.children[colIndex];
-      if (!cell) continue;
-      const input = cell.querySelector('input[role="combobox"], input[aria-autocomplete]');
-      if (input) inputs.push(input);
-    }
-    return inputs;
   }
 
   // ── Set a React-controlled combobox ───────────────────────────────────────
