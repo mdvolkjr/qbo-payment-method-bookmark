@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Deposit Fields
 // @namespace    qbo-bulk-deposit-fields
-// @version      2.5
+// @version      2.6
 // @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -227,18 +227,25 @@ function findColumnCells(headerText) {
   var upper = headerText.toUpperCase();
   var headerCells = [];
 
+  // Scope to the "Select payments" undeposited section; never touch the accordion "Other funds" section.
+  var searchRoot = document.querySelector('[class*="undepositedWrapper"]') || document;
+
   // Find th elements whose text starts with headerText — handles sort-icon text appended after.
-  // This catches the top "Select payments" table whose header has a child sort-icon element.
-  Array.from(document.querySelectorAll('th')).forEach(function(th) {
+  Array.from(searchRoot.querySelectorAll('th')).forEach(function(th) {
     var txt = th.textContent.trim().toUpperCase();
-    if (txt === upper || txt.indexOf(upper) === 0) {
+    if ((txt === upper || txt.indexOf(upper) === 0) &&
+        !th.closest('[id*="accordion__item-body"]') &&
+        !th.closest('#depositTable')) {
       headerCells.push(th);
     }
   });
 
-  // Also catch td-based plain-text headers (bottom "Add funds" table uses these).
-  Array.from(document.querySelectorAll('td')).forEach(function(td) {
-    if (td.textContent.trim().toUpperCase() === upper && headerCells.indexOf(td) === -1) {
+  // Also catch td-based plain-text headers.
+  Array.from(searchRoot.querySelectorAll('td')).forEach(function(td) {
+    if (td.textContent.trim().toUpperCase() === upper &&
+        headerCells.indexOf(td) === -1 &&
+        !td.closest('[id*="accordion__item-body"]') &&
+        !td.closest('#depositTable')) {
       headerCells.push(td);
     }
   });

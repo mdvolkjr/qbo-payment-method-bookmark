@@ -114,15 +114,30 @@
   // Fall back to broader selectors only if that yields nothing.
 
   function findPaymentMethodInputs() {
-    // 1. Precise: data-testid contains "payment_method" (handles _1_, _2_, … suffixes)
+    // Scope to the "Select payments" section; exclude the accordion "Other funds" section.
+    const isInBadSection = el =>
+      el.closest('[id*="accordion__item-body"]') || el.closest('#depositTable');
+
+    const paymentSection =
+      document.querySelector('[class*="undepositedWrapper"]') ||
+      document.querySelector('[class*="paymentTableWrapper"]');
+
+    // 1. Precise: data-testid contains "payment_method", scoped to correct section first
+    if (paymentSection) {
+      const scoped = Array.from(
+        paymentSection.querySelectorAll('input[data-testid*="payment_method"]')
+      );
+      if (scoped.length) return scoped;
+    }
+
     const precise = Array.from(
       document.querySelectorAll('input[data-testid*="payment_method"]')
-    );
+    ).filter(i => !isInBadSection(i));
     if (precise.length) return precise;
 
-    // 2. Find the "PAYMENT METHOD" column header and walk up to the table
+    // 2. Find the "PAYMENT METHOD" column header, excluding accordion/deposit table
     const headers = Array.from(document.querySelectorAll('div, span, th'))
-      .filter(el => el.textContent.trim().toUpperCase() === 'PAYMENT METHOD');
+      .filter(el => el.textContent.trim().toUpperCase() === 'PAYMENT METHOD' && !isInBadSection(el));
     if (headers.length) {
       const table = headers[0].closest(
         'table, [role="table"], section, div[class*="Deposit"], div[class*="deposit"], form'
@@ -130,15 +145,15 @@
       if (table) {
         const found = Array.from(table.querySelectorAll(
           'input[role="combobox"], input[aria-haspopup="listbox"], input[aria-autocomplete="list"]'
-        ));
+        )).filter(i => !isInBadSection(i));
         if (found.length) return found;
       }
     }
 
-    // 3. Last resort: every combobox on the page
+    // 3. Last resort: every combobox not in the accordion/deposit section
     return Array.from(document.querySelectorAll(
       'input[role="combobox"], input[aria-autocomplete]'
-    ));
+    )).filter(i => !isInBadSection(i));
   }
 
   // ── Set a React-controlled combobox ───────────────────────────────────────
