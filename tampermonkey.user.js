@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Deposit Fields
 // @namespace    qbo-bulk-deposit-fields
-// @version      2.6
+// @version      2.7
 // @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -34,9 +34,14 @@ function getBtnContainer() {
   if (!c) {
     c = document.createElement('div');
     c.id = 'qbo-btn-container';
-    c.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);' +
-      'z-index:2147483647;display:flex;gap:8px;';
-    document.body.appendChild(c);
+    c.style.cssText = 'display:inline-flex;gap:8px;align-items:center;';
+    var anchor = document.getElementById('ptFuzzBankDepositFixedHeaderDiv');
+    if (anchor) {
+      anchor.appendChild(c);
+    } else {
+      c.style.cssText += 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:2147483647;';
+      document.body.appendChild(c);
+    }
   }
   return c;
 }
