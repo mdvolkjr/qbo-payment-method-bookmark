@@ -29,19 +29,30 @@ setInterval(function () {
   }
 }, 1000);
 
-function injectBtn(id, label, right, bg, bgHover, handler) {
+function getBtnContainer() {
+  var c = document.getElementById('qbo-btn-container');
+  if (!c) {
+    c = document.createElement('div');
+    c.id = 'qbo-btn-container';
+    c.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);' +
+      'z-index:2147483647;display:flex;gap:8px;';
+    document.body.appendChild(c);
+  }
+  return c;
+}
+
+function injectBtn(id, label, _right, bg, bgHover, handler) {
   if (document.getElementById(id)) return;
   var btn = document.createElement('button');
   btn.id = id;
   btn.textContent = label;
-  btn.style.cssText = 'position:fixed;top:8px;right:' + right + ';z-index:2147483647;' +
-    'background:' + bg + ';color:#fff;border:none;border-radius:6px;' +
+  btn.style.cssText = 'background:' + bg + ';color:#fff;border:none;border-radius:6px;' +
     'padding:6px 12px;font-family:system-ui,sans-serif;font-size:13px;' +
     'font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);';
   btn.onmouseover = function() { btn.style.background = bgHover; };
   btn.onmouseout  = function() { btn.style.background = bg; };
   btn.onclick = handler;
-  document.body.appendChild(btn);
+  getBtnContainer().appendChild(btn);
 }
 
 function showPMPicker()   { showPicker('Set ALL Payment Methods to:', PM_VALUES,   '#2ca01c', '#108000', 'payment method', '120px'); }
