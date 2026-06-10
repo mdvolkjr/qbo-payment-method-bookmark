@@ -5,6 +5,8 @@
 // @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
+// @updateURL    https://raw.githubusercontent.com/mdvolkjr/qbo-payment-method-bookmark/main/tampermonkey.user.js
+// @downloadURL  https://raw.githubusercontent.com/mdvolkjr/qbo-payment-method-bookmark/main/tampermonkey.user.js
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
