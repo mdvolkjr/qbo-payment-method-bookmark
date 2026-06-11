@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         QBO Bulk Deposit Fields
+// @name         QBO Set Bank Deposit Payment Method
 // @namespace    qbo-bulk-deposit-fields
-// @version      2.9
+// @version      3.0
 // @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
