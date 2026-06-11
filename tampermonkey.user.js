@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Deposit Fields
 // @namespace    qbo-bulk-deposit-fields
-// @version      2.5
+// @version      2.6
 // @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -89,7 +89,62 @@ function runBulkSet(mode, value) {
   if (mode === 'account') {
     runDirect(value);
   } else {
-    runViaCell(value);
+    runPaymentMethod(value);
+  }
+}
+
+// On some QBO page states the payment method inputs are already in the DOM;
+// on others they are lazy and only appear after clicking the cell.
+// Try direct first; fall back to cell-click if nothing is found.
+async function runPaymentMethod(value) {
+  var directInputs = Array.from(document.querySelectorAll('input[data-testid*="payment_method"]'));
+  if (directInputs.length > 0) {
+    console.log('[QBO] payment method inputs already in DOM, using direct mode');
+    await runDirectPM(directInputs, value);
+  } else {
+    console.log('[QBO] payment method inputs not in DOM, using cell-click mode');
+    await runViaCell(value);
+  }
+}
+
+async function runDirectPM(inputs, value) {
+  var status = makeStatus('Setting payment methods to "' + value + '"...');
+  try {
+    var total = inputs.length;
+    var updated = 0;
+    var MAX = 20;
+    var failed = new Set();
+
+    while (updated < MAX) {
+      var currentInputs = Array.from(document.querySelectorAll('input[data-testid*="payment_method"]'));
+      var v = value.trim().toLowerCase();
+      var input = null;
+      for (var j = 0; j < currentInputs.length; j++) {
+        var key = currentInputs[j].dataset.testid || currentInputs[j].id || currentInputs[j].name;
+        if (currentInputs[j].value.trim().toLowerCase() !== v && !failed.has(key)) {
+          input = currentInputs[j]; break;
+        }
+      }
+      if (!input) break;
+
+      var ikey = input.dataset.testid || input.id || input.name;
+      try {
+        await setComboValue(input, value);
+        updated++;
+        await sleep(250);
+      } catch(e) {
+        console.warn('[QBO] direct PM failed on', input, e);
+        failed.add(ikey);
+      }
+    }
+
+    status.textContent = 'Updated ' + updated + ' of ' + total + ' rows.';
+    if (updated === 0) status.style.background = '#d52b1e';
+    setTimeout(function() { status.remove(); }, 3500);
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.background = '#d52b1e';
+    setTimeout(function() { status.remove(); }, 5000);
   }
 }
 
