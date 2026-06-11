@@ -209,15 +209,27 @@
 
   // ── Find column cells by header text (for lazy-rendered inputs) ───────────
 
+  function isInDepositTable(el) {
+    return !!(
+      el.closest('[id="depositTable"]') ||
+      el.closest('[id="depositTableAccordionHeader"]') ||
+      el.closest('[class*="AccordionItemBody"]') ||
+      el.closest('[class*="depositTableQuickFill"]') ||
+      el.closest('[class*="depositWrapper"]')
+    );
+  }
+
   function findColumnCells(headerText) {
     const upper = headerText.toUpperCase();
     const headerCells = [];
 
     Array.from(document.querySelectorAll('th')).forEach(th => {
+      if (isInDepositTable(th)) return;
       const txt = th.textContent.trim().toUpperCase();
       if (txt === upper || txt.indexOf(upper) === 0) headerCells.push(th);
     });
     Array.from(document.querySelectorAll('td')).forEach(td => {
+      if (isInDepositTable(td)) return;
       if (td.textContent.trim().toUpperCase() === upper && !headerCells.includes(td))
         headerCells.push(td);
     });
@@ -254,16 +266,16 @@
 
     const pOpts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1, isPrimary: true, pressure: 0.5, view: window };
     const mOpts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, button: 0, buttons: 1, view: window };
-    target.dispatchEvent(new PointerEvent('pointerover',  { ...pOpts, pressure: 0 }));
+    target.dispatchEvent(new PointerEvent('pointerover',  Object.assign({}, pOpts, { pressure: 0 })));
     target.dispatchEvent(new MouseEvent('mouseover',      mOpts));
-    target.dispatchEvent(new PointerEvent('pointermove',  { ...pOpts, pressure: 0 }));
+    target.dispatchEvent(new PointerEvent('pointermove',  Object.assign({}, pOpts, { pressure: 0 })));
     target.dispatchEvent(new MouseEvent('mousemove',      mOpts));
     target.dispatchEvent(new PointerEvent('pointerdown',  pOpts));
     target.dispatchEvent(new MouseEvent('mousedown',      mOpts));
     await sleep(30);
-    target.dispatchEvent(new PointerEvent('pointerup',    { ...pOpts, pressure: 0 }));
-    target.dispatchEvent(new MouseEvent('mouseup',        { ...mOpts, buttons: 0 }));
-    target.dispatchEvent(new MouseEvent('click',          { ...mOpts, buttons: 0 }));
+    target.dispatchEvent(new PointerEvent('pointerup',    Object.assign({}, pOpts, { pressure: 0 })));
+    target.dispatchEvent(new MouseEvent('mouseup',        Object.assign({}, mOpts, { buttons: 0 })));
+    target.dispatchEvent(new MouseEvent('click',          Object.assign({}, mOpts, { buttons: 0 })));
     await sleep(80);
 
     fireReactClick(target, cx, cy);
