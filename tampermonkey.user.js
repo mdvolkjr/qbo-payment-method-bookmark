@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         QBO Set Bank Deposit Payment Method
 // @namespace    qbo-bulk-deposit-fields
-// @version      3.0
+// @version      3.1
 // @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
+// @match        https://qbo.intuit.com/app/deposit*
 // @updateURL    https://raw.githubusercontent.com/mdvolkjr/qbo-payment-method-bookmark/main/tampermonkey.user.js
 // @downloadURL  https://raw.githubusercontent.com/mdvolkjr/qbo-payment-method-bookmark/main/tampermonkey.user.js
 // @grant        none
@@ -18,7 +19,7 @@ var PM_VALUES   = ['Check', 'Clio Payments', 'LawPay'];
 var ACCT_VALUES = ['Operating Account - 2104', 'Expense Account - 0387', 'IOLTA - 5899'];
 
 setInterval(function () {
-  if (location.pathname.indexOf('/app/deposit') === 0) {
+  if (location.pathname === '/app/deposit' || location.pathname.indexOf('/app/deposit?') === 0 || location.pathname.indexOf('/app/deposit/') === 0) {
     injectBtn('qbo-pm-btn',   'Set Payment Methods', '120px', '#2ca01c', '#108000', showPMPicker);
     injectBtn('qbo-acct-btn', 'Set Account',         '290px', '#0077c5', '#005a96', showAcctPicker);
   } else {
