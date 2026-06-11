@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Deposit Fields
 // @namespace    qbo-bulk-deposit-fields
-// @version      2.8
+// @version      2.9
 // @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -154,7 +154,9 @@ async function runDirect(value) {
   try {
     var inputs = Array.from(document.querySelectorAll(
       'input[data-testid*="payment_account"], input[aria-label="Choose an account"]'
-    ));
+    )).filter(function(inp) {
+      return !inp.dataset.testid || inp.dataset.testid.indexOf('cashback') === -1;
+    });
     var total = inputs.length;
     console.log('[QBO] account inputs found:', total);
 
