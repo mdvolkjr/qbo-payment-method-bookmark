@@ -7,8 +7,8 @@
 // @match        https://qbo.intuit.com/*
 // @grant        none
 // @run-at       document-idle
-// @updateURL    https://raw.githubusercontent.com/mdvolkjr/qbo-payment-method-bookmark/claude/bulk-payment-method-picker-LDu8X/tampermonkey.user.js
-// @downloadURL  https://raw.githubusercontent.com/mdvolkjr/qbo-payment-method-bookmark/claude/bulk-payment-method-picker-LDu8X/tampermonkey.user.js
+// @updateURL    https://raw.githubusercontent.com/mdvolkjr/qbo-payment-method-bookmark/claude/code-explanation-f6wabm/tampermonkey.user.js
+// @downloadURL  https://raw.githubusercontent.com/mdvolkjr/qbo-payment-method-bookmark/claude/code-explanation-f6wabm/tampermonkey.user.js
 // ==/UserScript==
 
 (function () {
