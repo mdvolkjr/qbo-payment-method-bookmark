@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QBO Bulk Deposit Fields
 // @namespace    qbo-bulk-deposit-fields
-// @version      2.7
+// @version      2.8
 // @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
@@ -19,8 +19,8 @@ var ACCT_VALUES = ['Operating Account - 2104', 'Expense Account - 0387', 'IOLTA 
 
 setInterval(function () {
   if (location.pathname.indexOf('/app/deposit') === 0) {
-    injectBtn('qbo-pm-btn',   'Set Payment Methods', '120px', '#2ca01c', '#108000', showPMPicker);
-    injectBtn('qbo-acct-btn', 'Set Account',         '290px', '#0077c5', '#005a96', showAcctPicker);
+    injectBtn('qbo-pm-btn',   'Set Payment Methods', '220px', '#2ca01c', '#108000', showPMPicker);
+    injectBtn('qbo-acct-btn', 'Set Account',         '400px', '#0077c5', '#005a96', showAcctPicker);
   } else {
     ['qbo-pm-btn','qbo-acct-btn','qbo-picker'].forEach(function(id) {
       var el = document.getElementById(id);
@@ -29,12 +29,12 @@ setInterval(function () {
   }
 }, 1000);
 
-function injectBtn(id, label, right, bg, bgHover, handler) {
+function injectBtn(id, label, left, bg, bgHover, handler) {
   if (document.getElementById(id)) return;
   var btn = document.createElement('button');
   btn.id = id;
   btn.textContent = label;
-  btn.style.cssText = 'position:fixed;top:8px;right:' + right + ';z-index:2147483647;' +
+  btn.style.cssText = 'position:fixed;top:8px;left:' + left + ';z-index:2147483647;' +
     'background:' + bg + ';color:#fff;border:none;border-radius:6px;' +
     'padding:6px 12px;font-family:system-ui,sans-serif;font-size:13px;' +
     'font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);';
