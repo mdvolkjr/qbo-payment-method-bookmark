@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         QBO Bulk Deposit Fields
 // @namespace    qbo-bulk-deposit-fields
-// @version      2.6
+// @version      2.7
 // @description  Bulk-set Payment Method and Account on the QBO Bank Deposit page
 // @match        https://app.qbo.intuit.com/*
 // @match        https://qbo.intuit.com/*
 // @grant        none
 // @run-at       document-idle
+// @updateURL    https://raw.githubusercontent.com/mdvolkjr/qbo-payment-method-bookmark/claude/bulk-payment-method-picker-LDu8X/tampermonkey.user.js
+// @downloadURL  https://raw.githubusercontent.com/mdvolkjr/qbo-payment-method-bookmark/claude/bulk-payment-method-picker-LDu8X/tampermonkey.user.js
 // ==/UserScript==
 
 (function () {
@@ -42,18 +44,31 @@ function injectBtn(id, label, right, bg, bgHover, handler) {
   document.body.appendChild(btn);
 }
 
-function showPMPicker()   { showPicker('Set ALL Payment Methods to:', PM_VALUES,   '#2ca01c', '#108000', 'payment method', '120px'); }
-function showAcctPicker() { showPicker('Set ALL Accounts to:',        ACCT_VALUES, '#0077c5', '#005a96', 'account',        '290px'); }
+function showPMPicker()   { showPicker('Set ALL Payment Methods to:', PM_VALUES,   '#2ca01c', '#108000', 'payment method', 'qbo-pm-btn'); }
+function showAcctPicker() { showPicker('Set ALL Accounts to:',        ACCT_VALUES, '#0077c5', '#005a96', 'account',        'qbo-acct-btn'); }
 
-function showPicker(title, values, bg, bgHover, mode, right) {
+var PICKER_WIDTH = 250;
+
+function showPicker(title, values, bg, bgHover, mode, anchorId) {
   var existing = document.getElementById('qbo-picker');
   if (existing) { existing.remove(); return; }
 
+  // Anchor the panel just below the button that opened it, left-aligned with
+  // the button but clamped so it never runs off the right edge of the window.
+  var top = 44, left = window.innerWidth - PICKER_WIDTH - 24;
+  var anchor = document.getElementById(anchorId);
+  if (anchor) {
+    var r = anchor.getBoundingClientRect();
+    top = Math.round(r.bottom + 8);
+    left = Math.round(Math.min(r.left, window.innerWidth - PICKER_WIDTH - 16));
+    if (left < 8) left = 8;
+  }
+
   var overlay = document.createElement('div');
   overlay.id = 'qbo-picker';
-  overlay.style.cssText = 'position:fixed;top:44px;right:' + right + ';z-index:2147483647;' +
+  overlay.style.cssText = 'position:fixed;top:' + top + 'px;left:' + left + 'px;z-index:2147483647;' +
     'background:#fff;border:1px solid #d4d7dc;border-radius:8px;padding:14px;' +
-    'box-shadow:0 8px 24px rgba(0,0,0,.18);font-family:system-ui,sans-serif;font-size:14px;width:250px;';
+    'box-shadow:0 8px 24px rgba(0,0,0,.18);font-family:system-ui,sans-serif;font-size:14px;width:' + PICKER_WIDTH + 'px;';
 
   var titleEl = document.createElement('div');
   titleEl.textContent = title;
